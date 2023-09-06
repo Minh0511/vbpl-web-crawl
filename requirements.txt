@@ -1,0 +1,7 @@
+beautifulsoup4==4.11.1
+lxml==4.9.3
+alembic==1.6.5
+SQLAlchemy==1.4.17
+SQLAlchemy-Utils==0.37.7
+python-dotenv==0.17.1
+PyMySQL==1.0.2
