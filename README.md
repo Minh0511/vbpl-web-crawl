@@ -22,3 +22,6 @@ alembic upgrade head
 ```
 alembic revision --autogenerate
 ```
+
+## Requirements
+[Requirements PDF](https://drive.google.com/file/d/11nrMVCe2yCIuMI4zzX4Wcif_7lhCv1GT/view?usp=sharing)
