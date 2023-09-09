@@ -18,6 +18,7 @@ class Vbpl(BareBaseModel):
     issuing_authority = Column(String(100), nullable=True)
     applicable_information = Column(String(100), nullable=True)
     html = Column(Text, nullable=True)
+    org_pdf_link = Column(String(100), nullable=True)
 
     # relationship
     toan_van = relationship("VbplToanVan", foreign_keys='VbplToanVan.vbpl_id',
@@ -53,6 +54,7 @@ class VbplToanVan(Base):
     section_number = Column(Integer, primary_key=True, nullable=False)
     section_name = Column(String(100), nullable=False)
     section_ref = Column(String(100), nullable=False)
+    section_content = Column(Text, nullable=True)
 
     # relationship
     vbpl = relationship("Vbpl", foreign_keys='VbplToanVan.vbpl_id',
