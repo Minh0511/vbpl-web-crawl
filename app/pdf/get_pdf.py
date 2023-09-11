@@ -5,6 +5,7 @@ import requests
 
 
 def get_pdf(pdf_url, folder_path):
+    # get vbpl pdf
     os.makedirs(folder_path, exist_ok=True)
 
     file_name_from_url = os.path.basename(pdf_url)
