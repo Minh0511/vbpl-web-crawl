@@ -4,21 +4,14 @@ import urllib.parse
 import requests
 import requests.packages
 import urllib3.exceptions
-from bs4 import BeautifulSoup
 
 
 def get_anle_file_name(response):
-    soup = BeautifulSoup(response.text, 'html.parser')
     content_disposition = response.headers.get('Content-Disposition')
     if content_disposition:
         match_file_name = re.search(r'filename=(.*?)(?:;|$)', content_disposition)
         if match_file_name:
             return match_file_name.group(1)
-    else:
-        # If content-disposition didn't provide the filename, try to extract from the HTML content
-        title_tag = soup.title
-        if title_tag:
-            return title_tag.text
 
     return None
 
