@@ -28,3 +28,5 @@ def get_pdf(pdf_url, folder_path):
         print(f"Failed to download PDF")
 
     response.close()
+
+    return file_path
