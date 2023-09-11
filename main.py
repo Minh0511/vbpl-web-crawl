@@ -1,19 +1,17 @@
 from bs4 import BeautifulSoup
+import requests
+import re
 
-# Opening the html file
-HTMLFile = open("misc/vbpl.html", "r", encoding="utf8")
+test_request = requests.get('https://vbpl.vn/VBQPPL_UserControls/Publishing_22/TimKiem/p_KetQuaTimKiemVanBan.aspx?IsVietNamese=True&Page=2&RowPerPage=10')
+# print(test_request.text)
+soup = BeautifulSoup(test_request.text, 'lxml')
+titles = soup.find_all('p', {"class": "title"})
 
-# Reading the file
-index = HTMLFile.read()
+find_id_regex = '(?<=ItemID=).*?(?=&)'
 
-# Creating a BeautifulSoup object and specifying the parser
-S = BeautifulSoup(index, 'lxml')
+for title in titles:
+    link = title.find('a')
+    print(re.findall(find_id_regex, link.get('href'))[0])
 
-# Using the select-one method to find the second element from the li tag
-Tag = S.select_one('li:nth-of-type(2)')
-
-# Using the decompose method
-Tag.decompose()
-
-# Using the prettify method to modify the code
-print(S.body.prettify())
+# message = soup.find('div', {'class': 'message'})
+# print(message.find('strong').string)
