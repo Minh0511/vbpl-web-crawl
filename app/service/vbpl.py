@@ -7,6 +7,7 @@ from typing import Dict
 import requests
 
 from app.helper.custom_exception import CommonException
+from app.helper.enum import VbplTab
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal
 from bs4 import BeautifulSoup
@@ -102,5 +103,44 @@ class VbplService:
                 prev_id_set = id_set
 
     @classmethod
-    def crawl_vbpl_toanvan(cls):
-        pass
+    def crawl_vbpl_toanvan(cls, vbpl_id):
+        aspx_url = f'/TW/Pages/vbpq-{VbplTab.FULL_TEXT}.aspx'
+        query_params = {
+            'ItemID': vbpl_id
+        }
+
+        try:
+            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+        except Exception as e:
+            _logger.exception(e)
+            raise CommonException(500, 'Crawl vbpl toan van')
+
+        if resp.status_code == HTTPStatus.OK:
+            soup = BeautifulSoup(resp.text, 'lxml')
+            fulltext = soup.find('div', {"class": "toanvancontent"})
+
+            find_section_regex = '>((Điều)|(Điều thứ))'
+            find_chapter_regex = '>Chương'
+            find_part_regex = '>Mục'
+            find_mini_part_regex = '>Tiểu mục'
+
+            lines = fulltext.find_all('p')
+
+            for line in lines:
+                if re.search(find_section_regex, str(line)):
+                    line_content = str(line.text)
+                    print(re.findall('(?<=Điều )\\d+', line_content), line_content)
+
+                    next_node = line
+                    while True:
+                        next_node = next_node.find_next_sibling('p')
+
+                        if next_node is None:
+                            break
+
+                        if re.search(find_chapter_regex, str(next_node)) or re.search(find_part_regex, str(next_node)):
+                            next_node = next_node.find_next_sibling('p')
+                            continue
+                        if re.search(find_section_regex, str(next_node)):
+                            break
+                        print(next_node.text)

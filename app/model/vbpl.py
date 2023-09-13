@@ -52,9 +52,14 @@ class VbplToanVan(Base):
 
     vbpl_id = Column(Integer, ForeignKey('vbpl.id'), primary_key=True, nullable=False)
     section_number = Column(Integer, primary_key=True, nullable=False)
-    section_name = Column(String(100), nullable=False)
-    section_ref = Column(String(100), nullable=False)
+    section_name = Column(String(100), nullable=True)
     section_content = Column(Text, nullable=True)
+    chapter_number = Column(Integer, nullable=True)
+    chapter_name = Column(String(100), nullable=True)
+    part_number = Column(Integer, nullable=True)
+    part_name = Column(String(100), nullable=True)
+    mini_part_number = Column(Integer, nullable=True)
+    mini_part_name = Column(String(100), nullable=True)
 
     # relationship
     vbpl = relationship("Vbpl", foreign_keys='VbplToanVan.vbpl_id',
