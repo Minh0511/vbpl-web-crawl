@@ -6,6 +6,7 @@ from sqlalchemy.orm import relationship
 class Anle(BareBaseModel):
     __tablename__ = 'anle'
 
+    doc_id = Column(String(25), nullable=False)
     file_link = Column(String(100), nullable=True)
     title = Column(String(100), nullable=False)
     serial_number = Column(String(100), nullable=False)
