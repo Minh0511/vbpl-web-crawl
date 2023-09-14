@@ -2,6 +2,8 @@ from pydantic import BaseSettings
 import os
 from dotenv import load_dotenv
 
+load_dotenv(verbose=True)
+
 
 class Setting(BaseSettings):
     ROOT_DIR = os.path.abspath(os.path.join(
