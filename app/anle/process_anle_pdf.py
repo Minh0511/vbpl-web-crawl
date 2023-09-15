@@ -52,7 +52,7 @@ def extract_pdf_content(content_type, text):
                 extracted_content.append(line)
 
     if content_type == anle_constant.ANLE_CONTENT:
-        extracted_content = ' '.join(extracted_content)[:-1]
+        extracted_content = ' '.join(extracted_content)[:-1].replace("[", "\n[")
     else:
         extracted_content = ' '.join(extracted_content)
 
