@@ -1,6 +1,7 @@
 import logging
 import math
 import re
+import copy
 from http import HTTPStatus
 from typing import Dict
 
@@ -9,8 +10,10 @@ import requests
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab
+from app.model import VbplToanVan
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal
+from app.helper.db import LocalSession
 from bs4 import BeautifulSoup
 
 _logger = logging.getLogger(__name__)
@@ -177,16 +180,19 @@ class VbplService:
 
             for line in lines:
                 if re.search(cls._find_section_regex, str(line)):
-                    print(vbpl_fulltext_obj)
 
                     line_content = line.text.strip()
                     section_number_search = re.search('\\b\\d+', line_content)
                     section_number = int(section_number_search.group())
-                    print("Điều", section_number)
+
                     section_name = line_content[section_number_search.span()[1]:]
                     section_name_search = re.search('\\b\\w', section_name)
                     section_name_refined = section_name[section_name_search.span()[0]:]
-                    print("Tên điều", section_name_refined)
+
+                    current_fulltext_config = copy.deepcopy(vbpl_fulltext_obj)
+                    # print(vbpl_fulltext_obj)
+                    # print("Điều", section_number)
+                    # print("Tên điều", section_name_refined)
                     content = []
 
                     next_node = line
@@ -204,6 +210,22 @@ class VbplService:
                         if re.search(cls._find_section_regex, str(next_node)) or re.search('_{2,}', str(next_node)):
                             section_content = '\n'.join(content)
                             # print(section_content)
+                            with LocalSession.begin() as session:
+                                new_fulltext_section = VbplToanVan(
+                                    vbpl_id=vbpl_id,
+                                    section_number=section_number,
+                                    section_name=section_name_refined,
+                                    section_content=section_content,
+                                    chapter_name=current_fulltext_config.current_chapter_name,
+                                    chapter_number=current_fulltext_config.current_chapter_number,
+                                    mini_part_name=current_fulltext_config.current_mini_part_name,
+                                    mini_part_number=current_fulltext_config.current_mini_part_number,
+                                    part_name=current_fulltext_config.current_part_name,
+                                    part_number=current_fulltext_config.current_part_number,
+                                    big_part_name=current_fulltext_config.current_big_part_name,
+                                    big_part_number=current_fulltext_config.current_big_part_number
+                                )
+                                session.add(new_fulltext_section)
                             break
 
                         content.append(next_node.text.strip())
