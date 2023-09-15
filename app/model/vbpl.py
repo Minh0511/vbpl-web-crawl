@@ -23,27 +23,27 @@ class Vbpl(BareBaseModel):
     # relationship
     toan_van = relationship("VbplToanVan", foreign_keys='VbplToanVan.vbpl_id',
                             primaryjoin='VbplToanVan.vbpl_id == Vbpl.id',
-                            back_populates="vbpl_toan_van",
+                            back_populates="vbpl",
                             lazy='select')
 
     related_document_source = relationship("VbplRelatedDocument", foreign_keys='VbplRelatedDocument.source_id',
                                            primaryjoin='VbplRelatedDocument.source_id == Vbpl.id',
-                                           back_populates="vbpl_related_document",
+                                           back_populates="source",
                                            lazy='select')
 
     related_document_dest = relationship("VbplRelatedDocument", foreign_keys='VbplRelatedDocument.related_id',
                                          primaryjoin='VbplRelatedDocument.related_id == Vbpl.id',
-                                         back_populates="vbpl_related_document",
+                                         back_populates="related",
                                          lazy='select')
 
     doc_map_source = relationship("VbplDocMap", foreign_keys='VbplDocMap.source_id',
                                   primaryjoin='VbplDocMap.source_id == Vbpl.id',
-                                  back_populates="vbpl_doc_map",
+                                  back_populates="source",
                                   lazy='select')
 
     doc_map_dest = relationship("VbplDocMap", foreign_keys='VbplDocMap.doc_map_id',
                                 primaryjoin='VbplDocMap.doc_map_id == Vbpl.id',
-                                back_populates="vbpl_doc_map",
+                                back_populates="related",
                                 lazy='select')
 
 
@@ -52,14 +52,21 @@ class VbplToanVan(Base):
 
     vbpl_id = Column(Integer, ForeignKey('vbpl.id'), primary_key=True, nullable=False)
     section_number = Column(Integer, primary_key=True, nullable=False)
-    section_name = Column(String(100), nullable=False)
-    section_ref = Column(String(100), nullable=False)
+    section_name = Column(String(400), nullable=True)
     section_content = Column(Text, nullable=True)
+    chapter_number = Column(String(25), nullable=True)
+    chapter_name = Column(String(200), nullable=True)
+    big_part_number = Column(String(25), nullable=True)
+    big_part_name = Column(String(200), nullable=True)
+    part_number = Column(String(25), nullable=True)
+    part_name = Column(String(200), nullable=True)
+    mini_part_number = Column(String(25), nullable=True)
+    mini_part_name = Column(String(200), nullable=True)
 
     # relationship
     vbpl = relationship("Vbpl", foreign_keys='VbplToanVan.vbpl_id',
                         primaryjoin='and_(VbplToanVan.vbpl_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
-                        back_populates="vbpl",
+                        back_populates="toan_van",
                         lazy='select')
 
 
@@ -72,12 +79,12 @@ class VbplRelatedDocument(Base):
     # relationship
     source = relationship("Vbpl", foreign_keys='VbplRelatedDocument.source_id',
                           primaryjoin='and_(VbplRelatedDocument.source_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
-                          back_populates="vbpl",
+                          back_populates="related_document_source",
                           lazy='select')
 
     related = relationship("Vbpl", foreign_keys='VbplRelatedDocument.related_id',
                            primaryjoin='and_(VbplRelatedDocument.related_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
-                           back_populates="vbpl",
+                           back_populates="related_document_dest",
                            lazy='select')
 
 
@@ -91,10 +98,10 @@ class VbplDocMap(Base):
     # relationship
     source = relationship("Vbpl", foreign_keys='VbplDocMap.source_id',
                           primaryjoin='and_(VbplDocMap.source_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
-                          back_populates="vbpl",
+                          back_populates="doc_map_source",
                           lazy='select')
 
     related = relationship("Vbpl", foreign_keys='VbplDocMap.doc_map_id',
                            primaryjoin='and_(VbplDocMap.doc_map_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
-                           back_populates="vbpl",
+                           back_populates="doc_map_dest",
                            lazy='select')

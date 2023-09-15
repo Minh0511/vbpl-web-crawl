@@ -22,7 +22,7 @@ class Anle(BareBaseModel):
     # relationship
     section = relationship("AnleSection", foreign_keys='AnleSection.anle_id',
                            primaryjoin='AnleSection.anle_id == Anle.id',
-                           back_populates="anle_section",
+                           back_populates="anle_source",
                            lazy='select')
 
 
@@ -37,5 +37,5 @@ class AnleSection(BareBaseModel):
     # relationship
     anle_source = relationship("Anle", foreign_keys='AnleSection.anle_id',
                                primaryjoin='and_(AnleSection.anle_id == Anle.id, Anle.deleted_at.is_(None))',
-                               back_populates="anle",
+                               back_populates="section",
                                lazy='select')
