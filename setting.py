@@ -11,6 +11,7 @@ class Setting(BaseSettings):
     ))
 
     VBPl_BASE_URL: str = os.getenv('VBPL_BASE_URL')
+    VBPL_PDF_BASE_URL: str = os.getenv('VBPL_PDF_BASE_URL')
     ANLE_BASE_URL: str = os.getenv('ANLE_BASE_URL')
     SQLALCHEMY_DATABASE_URI: str = os.getenv('SQLALCHEMY_DATABASE_URI')
 
