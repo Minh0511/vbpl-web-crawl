@@ -7,4 +7,5 @@ python-dotenv==0.17.1
 PyMySQL==1.0.2
 pydantic==1.8.2
 requests==2.25.1
-pdfplumber~=0.9.0
+pdfplumber==0.10.2
+urllib3==1.26.16
