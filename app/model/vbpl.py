@@ -8,6 +8,7 @@ class Vbpl(BareBaseModel):
 
     file_link = Column(String(100), nullable=True)
     title = Column(String(100), nullable=False)
+    sub_title = Column(String(400), nullable=True)
     doc_type = Column(String(100), nullable=True)
     serial_number = Column(String(100), nullable=False)
     issuance_date = Column(DateTime, nullable=False)
@@ -45,6 +46,24 @@ class Vbpl(BareBaseModel):
                                 primaryjoin='VbplDocMap.doc_map_id == Vbpl.id',
                                 back_populates="related",
                                 lazy='select')
+
+    def __str__(self):
+        return (f'########################\n'
+                f'id: {self.id},\n'
+                f'file link: {self.file_link},\n'
+                f'title: {self.title},\n'
+                f'sub title: {self.sub_title},\n'
+                f'doc type: {self.doc_type},\n'
+                f'serial number: {self.serial_number},\n'
+                f'issuance date: {self.issuance_date},\n'
+                f'effective date: {self.effective_date},\n'
+                f'expiration date: {self.expiration_date},\n'
+                f'gazette date: {self.gazette_date},\n'
+                f'state: {self.state},\n'
+                f'issuing authority: {self.issuing_authority},\n'
+                f'html: {self.html},\n'
+                f'org_pdf_link: {self.org_pdf_link},\n'
+                f'########################')
 
 
 class VbplToanVan(Base):

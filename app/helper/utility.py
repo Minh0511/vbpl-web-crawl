@@ -58,3 +58,9 @@ def convert_str_to_snake(camel_str):
     camel_str = re.sub('__([A-Z])', r'_\1', camel_str)
     camel_str = re.sub('([a-z0-9])([A-Z])', r'\1_\2', camel_str)
     return camel_str.lower()
+
+
+def get_html_node_text(html_node):
+    if html_node:
+        return html_node.text.strip()
+    return None
