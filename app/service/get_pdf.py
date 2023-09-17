@@ -16,8 +16,12 @@ def get_anle_file_name(response):
     return None
 
 
-def get_pdf(pdf_url, folder_path, is_vbpl):
+def get_pdf(pdf_url, is_vbpl):
     try:
+        folder_path = 'pdf/anle_pdf'
+        if is_vbpl:
+            folder_path = 'pdf/vbpl_pdf'
+
         os.makedirs(folder_path, exist_ok=True)
 
         if is_vbpl:
