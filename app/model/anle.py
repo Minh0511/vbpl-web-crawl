@@ -7,7 +7,7 @@ class Anle(BareBaseModel):
     __tablename__ = 'anle'
 
     doc_id = Column(String(25), nullable=False)
-    file_link = Column(String(100), nullable=True)
+    file_link = Column(String(200), nullable=True)
     title = Column(String(100), nullable=False)
     serial_number = Column(String(100), nullable=False)
     adoption_date = Column(DateTime, nullable=False)

@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship
 class Vbpl(BareBaseModel):
     __tablename__ = 'vbpl'
 
-    file_link = Column(String(100), nullable=True)
+    file_link = Column(String(200), nullable=True)
     title = Column(String(100), nullable=False)
     sub_title = Column(String(400), nullable=True)
     doc_type = Column(String(100), nullable=True)
@@ -19,7 +19,7 @@ class Vbpl(BareBaseModel):
     issuing_authority = Column(String(100), nullable=True)
     applicable_information = Column(String(100), nullable=True)
     html = Column(Text, nullable=True)
-    org_pdf_link = Column(String(100), nullable=True)
+    org_pdf_link = Column(String(200), nullable=True)
 
     # relationship
     toan_van = relationship("VbplToanVan", foreign_keys='VbplToanVan.vbpl_id',
@@ -130,3 +130,8 @@ class VbplDocMap(Base):
                            primaryjoin='and_(VbplDocMap.doc_map_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
                            back_populates="doc_map_dest",
                            lazy='select')
+
+    def __str__(self):
+        return (f'Source: {self.source_id},\n'
+                f'Doc map: {self.doc_map_id},\n'
+                f'Doc type: {self.doc_map_type}')

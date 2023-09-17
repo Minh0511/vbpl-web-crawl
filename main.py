@@ -22,9 +22,10 @@ from app.service.vbpl import VbplService
 # find_id_regex = '(?<=ItemID=).*?(?=&)'
 
 vbpl_service = VbplService()
-# test_vbpl = Vbpl(id=96122)
+test_vbpl = Vbpl(id=147301)
 # vbpl_service.crawl_vbpl_related_doc(test_vbpl)
-# vbpl_service.crawl_vbpl_all(VbplType.PHAP_QUY)
+vbpl_service.crawl_vbpl_all(VbplType.PHAP_QUY)
+# vbpl_service.crawl_vbpl_doc_map(test_vbpl, VbplType.HOP_NHAT)
 
 # message = soup.find('div', {'class': 'message'})
 # print(message.find('strong').string)

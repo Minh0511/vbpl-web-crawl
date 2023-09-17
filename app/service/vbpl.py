@@ -11,10 +11,12 @@ import requests
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
-from app.model import VbplToanVan, Vbpl, VbplRelatedDocument
+from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap
+from app.pdf.get_pdf import get_pdf
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text
 from app.helper.db import LocalSession
+from urllib.parse import quote
 from bs4 import BeautifulSoup
 
 _logger = logging.getLogger(__name__)
@@ -118,9 +120,10 @@ class VbplService:
                         sub_title=get_html_node_text(sub_title)
                     )
                     cls.crawl_vbpl_info(new_vbpl)
-                    # cls.crawl_vbpl_toanvan(new_vbpl)
-                    cls.crawl_vbpl_related_doc(new_vbpl)
-                    # print(new_vbpl)
+                    cls.crawl_vbpl_toanvan(new_vbpl)
+                    # cls.crawl_vbpl_related_doc(new_vbpl)
+                    # cls.crawl_vbpl_doc_map(new_vbpl, vbpl_type)
+                    print(new_vbpl)
 
                 if check_last_page:
                     break
@@ -181,9 +184,9 @@ class VbplService:
             raise CommonException(500, 'Crawl vbpl toan van')
 
         if resp.status_code == HTTPStatus.OK:
-            vbpl.html = resp.text
             soup = BeautifulSoup(resp.text, 'lxml')
             fulltext = soup.find('div', {"class": "toanvancontent"})
+            vbpl.html = str(fulltext)
 
             lines = fulltext.find_all('p')
             vbpl_fulltext_obj = VbplFullTextField()
@@ -321,9 +324,16 @@ class VbplService:
                 if re.search('.*.pdf', get_html_node_text(link_node)):
                     href = link_node['href']
                     file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
-                    file_urls.append(setting.VBPL_PDF_BASE_URL + file_url)
+                    file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
 
-            vbpl.org_pdf_link = ' '.join(file_urls)
+            if len(file_urls) > 0:
+                local_links = []
+                for url in file_urls:
+                    # TODO
+                    # download pdf and save it to server
+                    pass
+                vbpl.file_link = ' '.join(local_links)
+                vbpl.org_pdf_link = ' '.join(file_urls)
 
     @classmethod
     def crawl_vbpl_related_doc(cls, vbpl: Vbpl):
@@ -341,7 +351,7 @@ class VbplService:
 
             related_doc_node = soup.find('div', {'class': 'vbLienQuan'})
             if related_doc_node is None or re.search(cls._empty_related_doc_msg, get_html_node_text(related_doc_node)):
-                print("No related doc")
+                # print("No related doc")
                 return
 
             doc_type_node = related_doc_node.find_all('td', {'class': 'label'})
@@ -359,4 +369,85 @@ class VbplService:
                         related_id=doc_id,
                         doc_type=doc_type
                     )
+                    with LocalSession.begin() as session:
+                        session.add(new_vbpl_related_doc)
                     # print(new_vbpl_related_doc)
+
+    @classmethod
+    def crawl_vbpl_doc_map(cls, vbpl: Vbpl, vbpl_type: VbplType):
+        aspx_url = f'/TW/Pages/vbpq-{VbplTab.DOC_MAP.value}.aspx'
+        if vbpl_type == VbplType.HOP_NHAT:
+            aspx_url = f'/TW/Pages/vbpq-{VbplTab.DOC_MAP_HOP_NHAT.value}.aspx'
+        query_params = {
+            'ItemID': vbpl.id
+        }
+        try:
+            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+        except Exception as e:
+            _logger.exception(e)
+            raise CommonException(500, 'Crawl vbpl luoc do')
+        if resp.status_code == HTTPStatus.OK:
+            soup = BeautifulSoup(resp.text, 'lxml')
+            if vbpl_type == VbplType.PHAP_QUY:
+                doc_map_title_nodes = soup.find_all('div', {'class': re.compile('title')})
+                for doc_map_title_node in doc_map_title_nodes:
+                    doc_map_title = get_html_node_text(doc_map_title_node)
+
+                    doc_map_content_node = doc_map_title_node.find_next_sibling('div')
+                    doc_map_list = doc_map_content_node.find_all('li')
+                    for doc_map in doc_map_list:
+                        link = doc_map.find('a')
+                        link_ref = re.findall(find_id_regex, link.get('href'))
+                        doc_map_id = None
+
+                        if len(link_ref) > 0:
+                            doc_map_id = int(link_ref[0])
+                        else:
+                            doc_title = link.text.strip()
+                            try:
+                                search_resp = cls.call(method='GET',
+                                                       url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                                       query_params=convert_dict_to_pascal({
+                                                           'is_viet_namese': True,
+                                                           'row_per_page': cls._default_row_per_page,
+                                                           'page': 1,
+                                                           'keyword': doc_title
+                                                       }))
+                            except Exception as e:
+                                _logger.exception(e)
+                                raise CommonException(500, 'Crawl vbpl luoc do')
+                            if search_resp.status_code == HTTPStatus.OK:
+                                search_soup = BeautifulSoup(search_resp.text, 'lxml')
+                                titles = search_soup.find_all('p', {"class": "title"})
+                                if len(titles) > 0:
+                                    search_link = titles[0].find('a')
+                                    doc_map_id = int(re.findall(find_id_regex, search_link.get('href'))[0])
+
+                        new_vbpl_doc_map = VbplDocMap(
+                            source_id=vbpl.id,
+                            doc_map_id=doc_map_id,
+                            doc_map_type=doc_map_title
+                        )
+                        with LocalSession.begin() as session:
+                            session.add(new_vbpl_doc_map)
+                        # print(new_vbpl_doc_map)
+
+            elif vbpl_type == VbplType.HOP_NHAT:
+                doc_map_nodes = soup.find_all('div', {'class': 'w'})
+                if len(doc_map_nodes) > 1:
+                    doc_map_nodes = doc_map_nodes[:-1]
+                else:
+                    return
+                for doc_map_node in doc_map_nodes:
+                    link = doc_map_node.find('a')
+                    link_ref = re.findall(find_id_regex, link.get('href'))
+                    doc_map_id = int(link_ref[0])
+
+                    new_vbpl_doc_map = VbplDocMap(
+                        source_id=vbpl.id,
+                        doc_map_id=doc_map_id,
+                        doc_map_type='Văn bản được hợp nhất'
+                    )
+                    with LocalSession.begin() as session:
+                        session.add(new_vbpl_doc_map)
+                    # print(new_vbpl_doc_map)
