@@ -1,7 +1,7 @@
 import re
 import pdfplumber
 
-from app.constant import anle_constant
+from app.helper.constant import Anle
 
 
 def process_anle(file_path):
@@ -13,9 +13,9 @@ def process_anle(file_path):
                 page_text = page.extract_text()
                 text += page_text
 
-        anle_context = extract_pdf_content(anle_constant.ANLE_CONTEXT, text)
-        anle_solution = extract_pdf_content(anle_constant.ANLE_SOLUTION, text)
-        anle_content = extract_pdf_content(anle_constant.ANLE_CONTENT, text)
+        anle_context = extract_pdf_content(Anle.ANLE_CONTEXT, text)
+        anle_solution = extract_pdf_content(Anle.ANLE_SOLUTION, text)
+        anle_content = extract_pdf_content(Anle.ANLE_CONTENT, text)
 
         file_path_pattern = r'\((.*?)\)-'
         match_id = re.search(file_path_pattern, file_path)
@@ -43,7 +43,7 @@ def extract_pdf_content(content_type, text):
                 continue
             else:
                 inside_content = True
-        elif inside_content and content_type == anle_constant.ANLE_CONTENT:
+        elif inside_content and content_type == Anle.ANLE_CONTENT:
             extracted_content.append(line)
         elif inside_content and ":" in line:
             inside_content = False
@@ -51,7 +51,7 @@ def extract_pdf_content(content_type, text):
             if inside_content:
                 extracted_content.append(line)
 
-    if content_type == anle_constant.ANLE_CONTENT:
+    if content_type == Anle.ANLE_CONTENT:
         extracted_content = ' '.join(extracted_content)[:-1].replace("[", "\n[")
     else:
         extracted_content = ' '.join(extracted_content)
