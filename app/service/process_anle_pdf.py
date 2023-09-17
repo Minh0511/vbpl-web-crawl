@@ -63,10 +63,10 @@ def extract_pdf_content(section, text):
 
 def to_anle_section_db(file_id, anle_context, anle_solution, anle_content):
     with LocalSession.begin() as session:
-        result = session.query(Anle).filter(Anle.doc_id == file_id)
-        for row in result:
+        target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
+        for anle in target_anle:
             new_anle_section = AnleSection(
-                anle_id=row.id,
+                anle_id=anle.id,
                 context=anle_context,
                 solution=anle_solution,
                 content=anle_content,
