@@ -12,7 +12,7 @@ from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
 from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap
-from app.pdf.get_pdf import get_pdf
+from app.service.get_pdf import get_pdf
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text
 from app.helper.db import LocalSession
@@ -282,8 +282,7 @@ class VbplService:
             if pdf_view_object is not None:
                 pdf_link = re.findall('.+.pdf', pdf_view_object.get('data'))[0]
                 vbpl.org_pdf_link = setting.VBPL_PDF_BASE_URL + pdf_link
-                # TODO
-                # download pdf file and save it in server
+                vbpl.file_link = get_pdf(vbpl.org_pdf_link, True)
             else:
                 aspx_url = f'/TW/Pages/vbpq-{VbplTab.FULL_TEXT_HOP_NHAT_2.value}.aspx'
                 query_params = {
@@ -302,8 +301,7 @@ class VbplService:
                     if pdf_view_object is not None:
                         pdf_link = re.findall('.+.pdf', pdf_view_object.get('data'))[0]
                         vbpl.org_pdf_link = setting.VBPL_PDF_BASE_URL + pdf_link
-                        # TODO
-                        # download pdf file and save it in server
+                        vbpl.file_link = get_pdf(vbpl.org_pdf_link, True)
 
             with LocalSession.begin() as session:
                 session.add(vbpl)
@@ -369,9 +367,7 @@ class VbplService:
             if len(file_urls) > 0:
                 local_links = []
                 for url in file_urls:
-                    # TODO
-                    # download pdf and save it to server
-                    pass
+                    local_links.append(get_pdf(url, True))
                 vbpl.file_link = ' '.join(local_links)
                 vbpl.org_pdf_link = ' '.join(file_urls)
 
@@ -453,9 +449,7 @@ class VbplService:
             if len(file_urls) > 0:
                 local_links = []
                 for url in file_urls:
-                    # TODO
-                    # download pdf and save it to server
-                    pass
+                    local_links.append(get_pdf(url, True))
                 vbpl.file_link = ' '.join(local_links)
                 vbpl.org_pdf_link = ' '.join(file_urls)
 
