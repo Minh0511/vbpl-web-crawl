@@ -1,7 +1,9 @@
 import re
 import pdfplumber
 
-from app.helper.constant import Anle
+from app.helper.constant import AnleSectionConst
+from app.helper.db import LocalSession
+from app.model import AnleSection, Anle
 
 
 def process_anle(file_path):
@@ -13,9 +15,9 @@ def process_anle(file_path):
                 page_text = page.extract_text()
                 text += page_text
 
-        anle_context = extract_pdf_content(Anle.ANLE_CONTEXT, text)
-        anle_solution = extract_pdf_content(Anle.ANLE_SOLUTION, text)
-        anle_content = extract_pdf_content(Anle.ANLE_CONTENT, text)
+        anle_context = extract_pdf_content(AnleSectionConst.ANLE_CONTEXT, text)
+        anle_solution = extract_pdf_content(AnleSectionConst.ANLE_SOLUTION, text)
+        anle_content = extract_pdf_content(AnleSectionConst.ANLE_CONTENT, text)
 
         file_path_pattern = r'\((.*?)\)-'
         match_id = re.search(file_path_pattern, file_path)
@@ -31,19 +33,19 @@ def process_anle(file_path):
         print(e)
 
 
-def extract_pdf_content(content_type, text):
+def extract_pdf_content(section, text):
     lines = text.split('\n')
     extracted_content = []
 
     inside_content = False
 
     for line in lines:
-        if content_type in line:
+        if section in line:
             if inside_content:
                 continue
             else:
                 inside_content = True
-        elif inside_content and content_type == Anle.ANLE_CONTENT:
+        elif inside_content and section == AnleSectionConst.ANLE_CONTENT:
             extracted_content.append(line)
         elif inside_content and ":" in line:
             inside_content = False
@@ -51,9 +53,23 @@ def extract_pdf_content(content_type, text):
             if inside_content:
                 extracted_content.append(line)
 
-    if content_type == Anle.ANLE_CONTENT:
+    if section == AnleSectionConst.ANLE_CONTENT:
         extracted_content = ' '.join(extracted_content)[:-1].replace("[", "\n[")
     else:
         extracted_content = ' '.join(extracted_content)
 
     return extracted_content
+
+
+def to_anle_section_db(file_id, anle_context, anle_solution, anle_content):
+    with LocalSession.begin() as session:
+        result = session.query(Anle).filter(Anle.doc_id == file_id)
+        for row in result:
+            new_anle_section = AnleSection(
+                anle_id=row.id,
+                context=anle_context,
+                solution=anle_solution,
+                content=anle_content,
+            )
+            session.add(new_anle_section)
+

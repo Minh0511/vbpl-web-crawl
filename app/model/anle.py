@@ -30,9 +30,9 @@ class AnleSection(BareBaseModel):
     __tablename__ = 'anle_section'
 
     anle_id = Column(Integer, ForeignKey('anle.id'), nullable=False)
-    context = Column(String(1000), nullable=True)
-    solution = Column(String(1000), nullable=True)
-    content = Column(String(1000), nullable=True)
+    context = Column(Text, nullable=True)
+    solution = Column(Text, nullable=True)
+    content = Column(Text, nullable=True)
 
     # relationship
     anle_source = relationship("Anle", foreign_keys='AnleSection.anle_id',
