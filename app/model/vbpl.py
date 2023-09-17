@@ -94,6 +94,7 @@ class VbplRelatedDocument(Base):
 
     source_id = Column(Integer, ForeignKey('vbpl.id'), primary_key=True, nullable=False)
     related_id = Column(Integer, ForeignKey('vbpl.id'), primary_key=True, nullable=False)
+    doc_type = Column(String(100), nullable=True)
 
     # relationship
     source = relationship("Vbpl", foreign_keys='VbplRelatedDocument.source_id',
@@ -105,6 +106,11 @@ class VbplRelatedDocument(Base):
                            primaryjoin='and_(VbplRelatedDocument.related_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
                            back_populates="related_document_dest",
                            lazy='select')
+
+    def __str__(self):
+        return (f'Source: {self.source_id},\n'
+                f'Dest: {self.related_id},\n'
+                f'Doc type: {self.doc_type}')
 
 
 class VbplDocMap(Base):
