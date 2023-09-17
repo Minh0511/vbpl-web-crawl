@@ -11,7 +11,7 @@ import requests
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
-from app.model import VbplToanVan, Vbpl
+from app.model import VbplToanVan, Vbpl, VbplRelatedDocument
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text
 from app.helper.db import LocalSession
@@ -30,6 +30,7 @@ class VbplService:
     _find_part_regex = '>Mục'
     _find_part_regex_2 = '>Mu.c'
     _find_mini_part_regex = '>Tiểu mục'
+    _empty_related_doc_msg = 'Nội dung đang cập nhật'
 
     @classmethod
     def get_headers(cls) -> Dict:
@@ -118,7 +119,8 @@ class VbplService:
                     )
                     cls.crawl_vbpl_info(new_vbpl)
                     # cls.crawl_vbpl_toanvan(new_vbpl)
-                    print(new_vbpl)
+                    cls.crawl_vbpl_related_doc(new_vbpl)
+                    # print(new_vbpl)
 
                 if check_last_page:
                     break
@@ -311,8 +313,8 @@ class VbplService:
                     date_content = get_html_node_text(row)[len(expiration_date_regex):].strip()
                     vbpl.expiration_date = datetime.strptime(date_content, date_format)
 
-            file_links = files.find_all('li')
             file_urls = []
+            file_links = files.find_all('li')
 
             for link in file_links:
                 link_node = link.find_all('a')[0]
@@ -322,3 +324,39 @@ class VbplService:
                     file_urls.append(setting.VBPL_PDF_BASE_URL + file_url)
 
             vbpl.org_pdf_link = ' '.join(file_urls)
+
+    @classmethod
+    def crawl_vbpl_related_doc(cls, vbpl: Vbpl):
+        aspx_url = f'/TW/Pages/vbpq-{VbplTab.RELATED_DOC.value}.aspx'
+        query_params = {
+            'ItemID': vbpl.id
+        }
+        try:
+            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+        except Exception as e:
+            _logger.exception(e)
+            raise CommonException(500, 'Crawl vbpl van ban lien quan')
+        if resp.status_code == HTTPStatus.OK:
+            soup = BeautifulSoup(resp.text, 'lxml')
+
+            related_doc_node = soup.find('div', {'class': 'vbLienQuan'})
+            if related_doc_node is None or re.search(cls._empty_related_doc_msg, get_html_node_text(related_doc_node)):
+                print("No related doc")
+                return
+
+            doc_type_node = related_doc_node.find_all('td', {'class': 'label'})
+
+            for node in doc_type_node:
+                doc_type = get_html_node_text(node)
+                related_doc_list_node = node.find_next_sibling('td').find('ul', {'class': 'listVB'})
+
+                related_doc_list = related_doc_list_node.find_all('p', {'class': 'title'})
+                for doc in related_doc_list:
+                    link = doc.find('a')
+                    doc_id = int(re.findall(find_id_regex, link.get('href'))[0])
+                    new_vbpl_related_doc = VbplRelatedDocument(
+                        source_id=vbpl.id,
+                        related_id=doc_id,
+                        doc_type=doc_type
+                    )
+                    # print(new_vbpl_related_doc)

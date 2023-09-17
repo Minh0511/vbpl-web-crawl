@@ -6,6 +6,8 @@ import requests
 import re
 
 from app.anle.process_anle_pdf import process_anle
+from app.helper.enum import VbplType
+from app.model import Vbpl
 # import os
 
 # from app.pdf.get_pdf import get_pdf
@@ -19,8 +21,10 @@ from app.service.vbpl import VbplService
 
 # find_id_regex = '(?<=ItemID=).*?(?=&)'
 
-# vbpl_service = VbplService()
-# vbpl_service.crawl_vbpl_toanvan(96172)
+vbpl_service = VbplService()
+# test_vbpl = Vbpl(id=96122)
+# vbpl_service.crawl_vbpl_related_doc(test_vbpl)
+# vbpl_service.crawl_vbpl_all(VbplType.PHAP_QUY)
 
 # message = soup.find('div', {'class': 'message'})
 # print(message.find('strong').string)
@@ -31,16 +35,3 @@ from app.service.vbpl import VbplService
 # os.makedirs(store_folder, exist_ok=True)
 # for pdf_url in urls:
 #     get_pdf(pdf_url, store_folder)
-
-folder_path = 'pdf/anle_pdf'
-anle_files = glob.glob(os.path.join(folder_path, "*.pdf"))
-for file_path in anle_files:
-    file_id, anle_context, anle_solution, anle_content = process_anle(file_path)
-    print("file_id", file_id)
-    print('\n')
-    print("anle_context", anle_context)
-    print('\n')
-    print("anle_solution", anle_solution)
-    print('\n')
-    print("anle_content", anle_content)
-    print('\n')
