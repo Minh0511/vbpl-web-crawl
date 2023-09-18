@@ -7,9 +7,7 @@ import os
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
-import urllib3.exceptions
 import requests
-from dotenv import load_dotenv
 
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
