@@ -25,7 +25,7 @@ from app.service.vbpl import VbplService
 anle_service = AnleService()
 # test_vbpl = Vbpl(id=147301)
 # test_anle = Anle(doc_id='TAND292162')
-anle_service.crawl_anle_ids()
+anle_ids = anle_service.crawl_anle_ids()
 
 # vbpl_service.crawl_vbpl_related_doc(test_vbpl)
 # vbpl_service.crawl_vbpl_all(VbplType.PHAP_QUY)

@@ -1,13 +1,19 @@
 import logging
 import math
-import re
 
 import copy
 import os
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
+
+import pdfplumber
 import requests
+
+import re
+
+from app.helper.constant import AnleSectionConst
+from app.model import AnleSection
 
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
@@ -146,4 +152,75 @@ class AnleService:
                 break
             current_page += 1
 
+        print("anle ids:", list(set(anle_ids)))
+        print("number of an le:", len(list(set(anle_ids))))
+
         return list(set(anle_ids))
+
+    @classmethod
+    def process_anle(cls, file_path: str):
+        try:
+            with pdfplumber.open(file_path) as pdf_file:
+                text = ''
+
+                for page in pdf_file.pages:
+                    page_text = page.extract_text()
+                    text += page_text
+
+            anle_context = cls.extract_pdf_content(AnleSectionConst.ANLE_CONTEXT, text)
+            anle_solution = cls.extract_pdf_content(AnleSectionConst.ANLE_SOLUTION, text)
+            anle_content = cls.extract_pdf_content(AnleSectionConst.ANLE_CONTENT, text)
+
+            file_path_pattern = r'\((.*?)\)-'
+            match_id = re.search(file_path_pattern, file_path)
+
+            if match_id:
+                file_id = match_id.group(1)
+            else:
+                raise Exception("Failed to get file id")
+
+            return file_id, anle_context, anle_solution, anle_content
+
+        except Exception as e:
+            print(e)
+
+    @classmethod
+    def extract_pdf_content(cls, section: str, text: str):
+        lines = text.split('\n')
+        extracted_content = []
+
+        inside_content = False
+
+        for line in lines:
+            if section in line:
+                if inside_content:
+                    continue
+                else:
+                    inside_content = True
+            elif inside_content and section == AnleSectionConst.ANLE_CONTENT:
+                extracted_content.append(line)
+            elif inside_content and ":" in line:
+                inside_content = False
+            else:
+                if inside_content:
+                    extracted_content.append(line)
+
+        if section == AnleSectionConst.ANLE_CONTENT:
+            extracted_content = ' '.join(extracted_content)[:-1].replace("[", "\n[")
+        else:
+            extracted_content = ' '.join(extracted_content)
+
+        return extracted_content
+
+    @classmethod
+    def to_anle_section_db(cls, file_id: str, anle_context: str, anle_solution: str, anle_content: str):
+        with LocalSession.begin() as session:
+            target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
+            for anle in target_anle:
+                new_anle_section = AnleSection(
+                    anle_id=anle.id,
+                    context=anle_context,
+                    solution=anle_solution,
+                    content=anle_content,
+                )
+                session.add(new_anle_section)
