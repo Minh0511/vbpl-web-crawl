@@ -5,9 +5,9 @@ from bs4 import BeautifulSoup, PageElement
 import requests
 import re
 
-from app.anle.process_anle_pdf import process_anle
 from app.helper.enum import VbplType
-from app.model import Vbpl
+from app.model import Vbpl, Anle
+from app.service.anle import AnleService
 # import os
 
 # from app.pdf.get_pdf import get_pdf
@@ -21,11 +21,16 @@ from app.service.vbpl import VbplService
 
 # find_id_regex = '(?<=ItemID=).*?(?=&)'
 
-vbpl_service = VbplService()
+# vbpl_service = VbplService()
+anle_service = AnleService()
 test_vbpl = Vbpl(id=147301)
+test_anle = Anle(doc_id='TAND292162')
+
 # vbpl_service.crawl_vbpl_related_doc(test_vbpl)
-vbpl_service.crawl_vbpl_all(VbplType.PHAP_QUY)
+# vbpl_service.crawl_vbpl_all(VbplType.PHAP_QUY)
 # vbpl_service.crawl_vbpl_doc_map(test_vbpl, VbplType.HOP_NHAT)
+
+anle_service.crawl_anle_info(test_anle)
 
 # message = soup.find('div', {'class': 'message'})
 # print(message.find('strong').string)

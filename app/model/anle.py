@@ -25,6 +25,23 @@ class Anle(BareBaseModel):
                            back_populates="anle_source",
                            lazy='select')
 
+    def __str__(self):
+        return (f'########################\n'
+                f'id: {self.id},\n'
+                f'doc_id: {self.doc_id},\n'
+                f'file link: {self.file_link},\n'
+                f'title: {self.title},\n'
+                f'serial number: {self.serial_number},\n'
+                f'adoption date: {self.adoption_date},\n'
+                f'application date: {self.application_date},\n'
+                f'expiration date: {self.expiration_date},\n'
+                f'publication date: {self.publication_date},\n'
+                f'state: {self.state},\n'
+                f'sector: {self.sector},\n'
+                f'publication decision: {self.publication_decision},\n'
+                f'org_pdf_link: {self.org_pdf_link},\n'
+                f'########################')
+
 
 class AnleSection(BareBaseModel):
     __tablename__ = 'anle_section'
