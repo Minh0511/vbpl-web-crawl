@@ -110,14 +110,17 @@ class AnleService:
             if len(pdf_links) > 0:
                 file_links = []
                 for link in pdf_links:
-                    file_links.append(get_pdf(link, False))
+                    file_link = get_pdf(link, False)
+                    file_id, anle_context, anle_solution, anle_content = cls.process_anle(file_link)
+                    cls.to_anle_section_db(file_id, anle_context, anle_solution, anle_content)
+                    file_links.append(file_link)
                 anle.org_pdf_link = ' '.join(pdf_links)
                 anle.file_link = ' '.join(file_links)
 
             with LocalSession.begin() as session:
                 session.add(anle)
 
-            print(anle)
+            # print(anle)
 
     @classmethod
     def crawl_anle_ids(cls):
@@ -146,16 +149,18 @@ class AnleService:
                 for attr in anle_attribute_list:
                     href = attr['href']
                     anle_id = href.split('=')[-1]
-                    anle_ids.append(anle_id)
+                    new_anle = Anle(doc_id=anle_id)
+                    cls.crawl_anle_info(new_anle)
+                    # anle_ids.append(anle_id)
 
             if int(total_records) <= current_page * 10:
                 break
             current_page += 1
 
-        print("anle ids:", list(set(anle_ids)))
-        print("number of an le:", len(list(set(anle_ids))))
+        # print("anle ids:", list(set(anle_ids)))
+        # print("number of an le:", len(list(set(anle_ids))))
 
-        return list(set(anle_ids))
+        # return list(set(anle_ids))
 
     @classmethod
     def process_anle(cls, file_path: str):
@@ -182,7 +187,7 @@ class AnleService:
             return file_id, anle_context, anle_solution, anle_content
 
         except Exception as e:
-            print(e)
+            raise Exception("Failed to process anle pdf")
 
     @classmethod
     def extract_pdf_content(cls, section: str, text: str):
