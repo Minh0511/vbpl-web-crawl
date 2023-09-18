@@ -23,14 +23,15 @@ from app.service.vbpl import VbplService
 
 # vbpl_service = VbplService()
 anle_service = AnleService()
-test_vbpl = Vbpl(id=147301)
-test_anle = Anle(doc_id='TAND292162')
+# test_vbpl = Vbpl(id=147301)
+# test_anle = Anle(doc_id='TAND292162')
+anle_ids = anle_service.crawl_anle_ids()
 
 # vbpl_service.crawl_vbpl_related_doc(test_vbpl)
 # vbpl_service.crawl_vbpl_all(VbplType.PHAP_QUY)
 # vbpl_service.crawl_vbpl_doc_map(test_vbpl, VbplType.HOP_NHAT)
 
-anle_service.crawl_anle_info(test_anle)
+# anle_service.crawl_anle_info(test_anle)
 
 # message = soup.find('div', {'class': 'message'})
 # print(message.find('strong').string)

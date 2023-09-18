@@ -43,7 +43,7 @@ def get_pdf(pdf_url, is_vbpl):
             file_name_from_url = os.path.basename(pdf_url)
             pdf_file_name = urllib.parse.unquote_plus(file_name_from_url)
         else:
-            pdf_file_name = get_anle_file_name(response)
+            pdf_file_name = get_anle_file_name(response).replace(" ", "_")
             if not pdf_file_name:
                 raise Exception(f"Failed to get file name for URL: {pdf_url}")
 
