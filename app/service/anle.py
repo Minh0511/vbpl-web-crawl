@@ -3,11 +3,13 @@ import math
 import re
 
 import copy
+import os
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
-
+import urllib3.exceptions
 import requests
+from dotenv import load_dotenv
 
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
@@ -112,3 +114,38 @@ class AnleService:
                 session.add(anle)
 
             print(anle)
+
+    @classmethod
+    def crawl_anle_ids(cls):
+        url = f'/webcenter/portal/anle/anle'
+        current_page = 1
+        anle_ids = []
+        while True:
+            query_params = {
+                'selectedPage': current_page,
+                'docType': 'AnLe',
+                'hieuLuc': 1,
+            }
+            total_records = 0
+            try:
+                resp = cls.call(method='GET', url_path=url, query_params=query_params)
+            except Exception as e:
+                _logger.exception(e)
+                raise CommonException(500, 'call anle search api')
+            if resp.status_code == HTTPStatus.OK:
+                soup = BeautifulSoup(resp.text, 'lxml')
+                total_records = soup.find('span', style="color: #2673b4").text
+                anle_attribute_list = soup.find_all('a', {
+                    'class': 'thuoctinh-hover'
+                }, href=True)
+
+                for attr in anle_attribute_list:
+                    href = attr['href']
+                    anle_id = href.split('=')[-1]
+                    anle_ids.append(anle_id)
+
+            if int(total_records) <= current_page * 10:
+                break
+            current_page += 1
+
+        return list(set(anle_ids))
