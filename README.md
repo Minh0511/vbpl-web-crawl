@@ -17,6 +17,11 @@ docker compose up -d
 alembic upgrade head
 ```
 
+### Install Ghostscript
+[Download link](https://www.ghostscript.com/releases/gsdnld.html)
+
+#### Note: there can be an error related to Window's Ghostscript execution file and the one defined in pdfplumber. Currently the only valid execution file name is 'gs' or 'gswin32c', change your execution file name accordingly.
+
 ## Other utilities
 ### Create migration versions
 ```
