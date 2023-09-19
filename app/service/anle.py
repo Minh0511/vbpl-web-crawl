@@ -39,7 +39,7 @@ class AnleService:
             #                                            headers=headers, timeout=timeout, verify=False)
             async with aiohttp.ClientSession() as session:
                 async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
-                                           headers=headers) as resp:
+                                           headers=headers, verify_ssl=False) as resp:
                     await resp.text()
             if resp.status != HTTPStatus.OK:
                 _logger.warning(
