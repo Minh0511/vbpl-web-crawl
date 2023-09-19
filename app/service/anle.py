@@ -20,7 +20,7 @@ from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
 from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap, Anle
-from app.service.get_pdf import get_pdf
+from app.service.get_pdf import get_document
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text
 from app.helper.db import LocalSession
@@ -118,7 +118,7 @@ class AnleService:
             file_links = []
             if len(pdf_links) > 0:
                 for link in pdf_links:
-                    file_link = get_pdf(link, False)
+                    file_link = get_document(link, False)
                     file_links.append(file_link)
                 anle.org_pdf_link = ' '.join(pdf_links)
                 anle.file_link = ' '.join(file_links)
