@@ -83,6 +83,8 @@ class VbplService:
         prev_id_set = set()
 
         for i in range(total_pages):
+            if i == 10:
+                break
             query_params = convert_dict_to_pascal({
                 'is_viet_namese': True,
                 'row_per_page': cls._default_row_per_page,

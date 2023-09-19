@@ -7,6 +7,7 @@ from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
 
+import aiohttp
 import pdfplumber
 import requests
 
@@ -37,16 +38,20 @@ class AnleService:
         return {'Content-Type': 'application/json'}
 
     @classmethod
-    def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=30):
+    async def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=30):
         url = cls._api_base_url + url_path
         headers = cls.get_headers()
         try:
-            resp: requests.Response = requests.request(method, url, params=query_params, json=json_data,
-                                                       headers=headers, timeout=timeout, verify=False)
-            if resp.status_code != 200:
+            # resp: requests.Response = requests.request(method, url, params=query_params, json=json_data,
+            #                                            headers=headers, timeout=timeout, verify=False)
+            async with aiohttp.ClientSession() as session:
+                async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
+                                           headers=headers) as resp:
+                    await resp.text()
+            if resp.status != HTTPStatus.OK:
                 _logger.warning(
                     "Calling VBPL URL: %s, request_param %s, request_payload %s, http_code: %s, response: %s" %
-                    (url, str(query_params), str(json_data), str(resp.status_code), resp.text))
+                    (url, str(query_params), str(json_data), str(resp.status), resp.text))
             return resp
         except Exception as e:
             _logger.warning(f"Calling VBPL URL: {url},"
@@ -55,18 +60,21 @@ class AnleService:
             raise e
 
     @classmethod
-    def crawl_anle_info(cls, anle: Anle):
+    async def crawl_anle_info(cls, anle: Anle):
         url = f'/webcenter/portal/anle/chitietanle'
         query_params = {
-            'dDocName': anle.doc_id
+            'dDocName': anle.doc_id,
+            '_afrWindowMode': 0
         }
         try:
-            resp = cls.call(method='GET', url_path=url, query_params=query_params)
+            resp = await cls.call(method='GET', url_path=url, query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Crawl anle thuoc tinh')
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            resp_text = await resp.text()
+            soup = BeautifulSoup(resp_text, 'lxml')
+            # print("Text", resp_text)
             anle_info_node = soup.find('div', {'id': 'thuoctinh'})
             table_headers = anle_info_node.find_all('th')
 
@@ -83,9 +91,9 @@ class AnleService:
 
             date_format = '%d/%m/%Y'
 
-            def check_table_cell(field, node, input_anle: Anle):
-                if re.search(regex_dict[field], str(node)):
-                    field_value_node = node.find_next_sibling('td')
+            def check_table_cell(field, html_node, input_anle: Anle):
+                if re.search(regex_dict[field], str(html_node)):
+                    field_value_node = html_node.find_next_sibling('td')
                     if field_value_node:
                         if field == 'adoption_date' or field == 'publication_date' or field == 'application_date':
                             try:
@@ -107,12 +115,10 @@ class AnleService:
                 if link_node is not None:
                     pdf_links.append(setting.ANLE_BASE_URL + link_node.get('href'))
 
+            file_links = []
             if len(pdf_links) > 0:
-                file_links = []
                 for link in pdf_links:
                     file_link = get_pdf(link, False)
-                    file_id, anle_context, anle_solution, anle_content = cls.process_anle(file_link)
-                    cls.to_anle_section_db(file_id, anle_context, anle_solution, anle_content)
                     file_links.append(file_link)
                 anle.org_pdf_link = ' '.join(pdf_links)
                 anle.file_link = ' '.join(file_links)
@@ -120,14 +126,20 @@ class AnleService:
             with LocalSession.begin() as session:
                 session.add(anle)
 
+            for file_link in file_links:
+                file_id, anle_context, anle_solution, anle_content = cls.process_anle(file_link)
+                cls.to_anle_section_db(file_id, anle_context, anle_solution, anle_content)
+
             # print(anle)
 
     @classmethod
-    def crawl_anle_ids(cls):
+    async def crawl_all_anle(cls):
         url = f'/webcenter/portal/anle/anle'
         current_page = 1
         anle_ids = []
         while True:
+            if current_page == 11:
+                break
             query_params = {
                 'selectedPage': current_page,
                 'docType': 'AnLe',
@@ -135,12 +147,12 @@ class AnleService:
             }
             total_records = 0
             try:
-                resp = cls.call(method='GET', url_path=url, query_params=query_params)
+                resp = await cls.call(method='GET', url_path=url, query_params=query_params)
             except Exception as e:
                 _logger.exception(e)
                 raise CommonException(500, 'call anle search api')
-            if resp.status_code == HTTPStatus.OK:
-                soup = BeautifulSoup(resp.text, 'lxml')
+            if resp.status == HTTPStatus.OK:
+                soup = BeautifulSoup(await resp.text(), 'lxml')
                 total_records = soup.find('span', style="color: #2673b4").text
                 anle_attribute_list = soup.find_all('a', {
                     'class': 'thuoctinh-hover'
@@ -150,22 +162,17 @@ class AnleService:
                     href = attr['href']
                     anle_id = href.split('=')[-1]
                     new_anle = Anle(doc_id=anle_id)
-                    cls.crawl_anle_info(new_anle)
+                    await cls.crawl_anle_info(new_anle)
                     # anle_ids.append(anle_id)
 
             if int(total_records) <= current_page * 10:
                 break
             current_page += 1
 
-        # print("anle ids:", list(set(anle_ids)))
-        # print("number of an le:", len(list(set(anle_ids))))
-
-        # return list(set(anle_ids))
-
     @classmethod
     def process_anle(cls, file_path: str):
         try:
-            with pdfplumber.open(file_path) as pdf_file:
+            with pdfplumber.open(file_path, repair=True) as pdf_file:
                 text = ''
 
                 for page in pdf_file.pages:
@@ -187,7 +194,7 @@ class AnleService:
             return file_id, anle_context, anle_solution, anle_content
 
         except Exception as e:
-            raise Exception("Failed to process anle pdf")
+            raise Exception("Failed to process anle pdf", e)
 
     @classmethod
     def extract_pdf_content(cls, section: str, text: str):
