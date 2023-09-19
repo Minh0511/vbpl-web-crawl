@@ -16,39 +16,37 @@ def get_anle_file_name(response):
     return None
 
 
-def get_pdf(pdf_url, is_vbpl):
+def get_document(document_url, is_vbpl):
     try:
-        folder_path = 'pdf/anle_pdf'
+        pdf_folder_path = 'documents/pdf/anle_pdf'
+        doc_folder_path = 'documents/doc/anle_doc'
         if is_vbpl:
-            folder_path = 'pdf/vbpl_pdf'
+            pdf_folder_path = 'documents/pdf/vbpl_pdf'
+            doc_folder_path = 'documents/doc/vbpl_doc'
 
-        os.makedirs(folder_path, exist_ok=True)
+        os.makedirs(pdf_folder_path, exist_ok=True)
+        os.makedirs(doc_folder_path, exist_ok=True)\
 
-        if is_vbpl:
-            # regex for vbpl
-            match_id = re.search(r'/Attachments/(\d+)/', pdf_url)
-        else:
-            # regex for anle
-            match_id = re.search(r'/UCMServer/(\w+)', pdf_url)
-
-        if match_id:
-            file_id = match_id.group(1)
-        else:
-            file_id = "noId"
+        file_id = get_file_id(document_url, is_vbpl)
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        response = requests.get(pdf_url, verify=False)
+        response = requests.get(document_url, verify=False)
 
         if is_vbpl:
-            file_name_from_url = os.path.basename(pdf_url)
-            pdf_file_name = urllib.parse.unquote_plus(file_name_from_url)
+            file_name_from_url = os.path.basename(document_url)
+            document_file_name = urllib.parse.unquote_plus(file_name_from_url)
         else:
-            pdf_file_name = get_anle_file_name(response).replace(" ", "_")
-            if not pdf_file_name:
-                raise Exception(f"Failed to get file name for URL: {pdf_url}")
+            document_file_name = get_anle_file_name(response).replace(" ", "_")
+            if not document_file_name:
+                raise Exception(f"Failed to get file name for URL: {document_url}")
 
-        file_name = f"({file_id})-{pdf_file_name}"
-        file_path = os.path.join(folder_path, file_name)
+        decoded_file_name = urllib.parse.unquote(document_file_name)
+
+        file_name = f"({file_id})-{decoded_file_name.replace(' ', '_').replace('%', '_')}"
+        if is_pdf(file_name):
+            file_path = os.path.join(pdf_folder_path, file_name)
+        else:
+            file_path = os.path.join(doc_folder_path, file_name)
 
         if response.status_code == 200:
             with open(file_path, 'wb') as pdf_file:
@@ -59,5 +57,25 @@ def get_pdf(pdf_url, is_vbpl):
         return file_path
 
     except Exception as e:
-        print(f"Error processing URL: {pdf_url}")
+        print(f"Error processing URL: {document_url}")
         print(f"Error message: {str(e)}")
+
+
+def is_pdf(file_name):
+    pattern = r'\.pdf$'
+    return re.search(pattern, file_name, re.IGNORECASE) is not None
+
+
+def get_file_id(document_url, is_vbpl):
+    if is_vbpl:
+        # regex for vbpl
+        match_id = re.search(r'/Attachments/(\d+)/', document_url)
+    else:
+        # regex for anle
+        match_id = re.search(r'/UCMServer/(\w+)', document_url)
+
+    if match_id:
+        file_id = match_id.group(1)
+    else:
+        file_id = "noId"
+    return file_id

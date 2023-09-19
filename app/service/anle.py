@@ -1,31 +1,24 @@
 import logging
-import math
-
-import copy
 import os
+import re
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
 
 import aiohttp
 import pdfplumber
-import requests
-
-import re
+from bs4 import BeautifulSoup
+from docx2pdf import convert
 
 from app.helper.constant import AnleSectionConst
-from app.model import AnleSection
-
-from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
-from app.helper.enum import VbplTab, VbplType
-from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap, Anle
-from app.service.get_pdf import get_pdf
-from setting import setting
-from app.helper.utility import convert_dict_to_pascal, get_html_node_text
 from app.helper.db import LocalSession
-from urllib.parse import quote
-from bs4 import BeautifulSoup
+from app.helper.utility import get_html_node_text
+from app.model import Anle
+from app.model import AnleSection
+from app.service.get_pdf import get_document, is_pdf
+from setting import setting
+import aspose.words as aw
 
 _logger = logging.getLogger(__name__)
 
@@ -46,7 +39,7 @@ class AnleService:
             #                                            headers=headers, timeout=timeout, verify=False)
             async with aiohttp.ClientSession() as session:
                 async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
-                                           headers=headers) as resp:
+                                           headers=headers, verify_ssl=False) as resp:
                     await resp.text()
             if resp.status != HTTPStatus.OK:
                 _logger.warning(
@@ -118,7 +111,7 @@ class AnleService:
             file_links = []
             if len(pdf_links) > 0:
                 for link in pdf_links:
-                    file_link = get_pdf(link, False)
+                    file_link = get_document(link, False)
                     file_links.append(file_link)
                 anle.org_pdf_link = ' '.join(pdf_links)
                 anle.file_link = ' '.join(file_links)
@@ -172,9 +165,23 @@ class AnleService:
     @classmethod
     def process_anle(cls, file_path: str):
         try:
-            with pdfplumber.open(file_path, repair=True) as pdf_file:
-                text = ''
+            text = ''
+            file_path_pattern = r'\((.*?)\)-'
+            match_id = re.search(file_path_pattern, file_path)
+            is_pdf_file = True
 
+            if match_id:
+                file_id = match_id.group(1)
+            else:
+                raise Exception("Failed to get file id")
+
+            if not is_pdf(file_path):
+                is_pdf_file = False
+                doc = aw.Document(file_path)
+                doc.save('temp.pdf')
+                file_path = 'temp.pdf'
+
+            with pdfplumber.open(file_path) as pdf_file:
                 for page in pdf_file.pages:
                     page_text = page.extract_text()
                     text += page_text
@@ -183,13 +190,9 @@ class AnleService:
             anle_solution = cls.extract_pdf_content(AnleSectionConst.ANLE_SOLUTION, text)
             anle_content = cls.extract_pdf_content(AnleSectionConst.ANLE_CONTENT, text)
 
-            file_path_pattern = r'\((.*?)\)-'
-            match_id = re.search(file_path_pattern, file_path)
-
-            if match_id:
-                file_id = match_id.group(1)
-            else:
-                raise Exception("Failed to get file id")
+            if not is_pdf_file:
+                os.remove('temp.pdf')
+                anle_content = anle_content.replace(AnleSectionConst.APOSE_WATERMARK, '')
 
             return file_id, anle_context, anle_solution, anle_content
 
