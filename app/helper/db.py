@@ -8,7 +8,7 @@ from setting import setting
 _logger = logging.getLogger(__name__)
 
 db_engine = create_engine(setting.SQLALCHEMY_DATABASE_URI, pool_pre_ping=True)
-LocalSession = sessionmaker(autocommit=False, autoflush=True, bind=db_engine)
+LocalSession = sessionmaker(autocommit=True, autoflush=True, bind=db_engine, expire_on_commit=False)
 
 
 def open_db_session() -> Session:

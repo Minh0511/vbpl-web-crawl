@@ -34,7 +34,7 @@ class AnleService:
         url = cls._api_base_url + url_path
         headers = cls.get_headers()
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(trust_env=True) as session:
                 async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
                                            headers=headers, verify_ssl=False) as resp:
                     await resp.text()
@@ -126,7 +126,7 @@ class AnleService:
     async def crawl_all_anle(cls):
         url = f'/webcenter/portal/anle/anle'
         current_page = 1
-        anle_ids = []
+        progress = 0
         while True:
             query_params = {
                 'selectedPage': current_page,
@@ -149,9 +149,20 @@ class AnleService:
                 for attr in anle_attribute_list:
                     href = attr['href']
                     anle_id = href.split('=')[-1]
+                    with LocalSession.begin() as session:
+                        statement = session.query(Anle).filter(Anle.doc_id == anle_id)
+                        check_anle = session.execute(statement).all()
+                        if len(check_anle) != 0:
+                            progress += 1
+                            print(f"Progress: {progress}/{total_records}")
+                            continue
+
                     new_anle = Anle(doc_id=anle_id)
                     await cls.crawl_anle_info(new_anle)
-                    # anle_ids.append(anle_id)
+
+                    # update progress
+                    progress += 1
+                    print(f"Progress: {progress}/{total_records}")
 
             if int(total_records) <= current_page * 10:
                 break

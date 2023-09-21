@@ -1,5 +1,6 @@
 from app.model.base import BareBaseModel, Base
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import relationship
 
 
@@ -19,7 +20,7 @@ class Vbpl(BareBaseModel):
     issuing_authority = Column(String(100), nullable=True)
     applicable_information = Column(String(100), nullable=True)
     sector = Column(String(100), nullable=True)
-    html = Column(Text, nullable=True)
+    html = Column(LONGTEXT, nullable=True)
     org_pdf_link = Column(String(200), nullable=True)
 
     # relationship

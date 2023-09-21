@@ -7,6 +7,7 @@ from http import HTTPStatus
 from typing import Dict
 
 import aiohttp
+import yarl
 
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
@@ -14,7 +15,8 @@ from app.helper.enum import VbplTab, VbplType
 from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap
 from app.service.get_pdf import get_document
 from setting import setting
-from app.helper.utility import convert_dict_to_pascal, get_html_node_text
+from app.helper.utility import convert_dict_to_pascal, get_html_node_text, convert_datetime_to_str, \
+    concetti_query_params_url_encode
 from app.helper.db import LocalSession
 from urllib.parse import quote
 import Levenshtein
@@ -26,13 +28,13 @@ find_id_regex = '(?<=ItemID=)\\d+'
 
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
-    _default_row_per_page = 70
+    _default_row_per_page = 10
     _find_big_part_regex = '>((Phần)|(Phần thứ))'
     _find_section_regex = '>((Điều)|(Điều thứ))'
-    _find_chapter_regex = '>Chương'
-    _find_part_regex = '>Mục'
-    _find_part_regex_2 = '>Mu.c'
-    _find_mini_part_regex = '>Tiểu mục'
+    _find_chapter_regex = '^Chương [IVX]+'
+    _find_part_regex = '^Mục [IVX]+'
+    _find_part_regex_2 = '^Mu.c [IVX]+'
+    _find_mini_part_regex = '^Tiểu mục [IVX]+'
     _empty_related_doc_msg = 'Nội dung đang cập nhật'
     _concetti_base_url = setting.CONCETTI_BASE_URL
 
@@ -45,9 +47,9 @@ class VbplService:
         url = cls._api_base_url + url_path
         headers = cls.get_headers()
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(trust_env=True) as session:
                 async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
-                                           headers=headers, verify_ssl=False) as resp:
+                                           headers=headers) as resp:
                     await resp.text()
             if resp.status != HTTPStatus.OK:
                 _logger.warning(
@@ -63,7 +65,6 @@ class VbplService:
     async def get_total_doc(cls, vbpl_type: VbplType):
         try:
             query_params = convert_dict_to_pascal({
-                'is_viet_namese': True,
                 'row_per_page': cls._default_row_per_page,
                 'page': 2
             })
@@ -84,12 +85,13 @@ class VbplService:
         total_doc = await cls.get_total_doc(vbpl_type)
         total_pages = math.ceil(total_doc / cls._default_row_per_page)
         prev_id_set = set()
+        full_id_list = []
+        progress = 0
 
         for i in range(total_pages):
-            if i == 2:
+            if i == 1:
                 break
             query_params = convert_dict_to_pascal({
-                'is_viet_namese': True,
                 'row_per_page': cls._default_row_per_page,
                 'page': i + 1
             })
@@ -118,6 +120,15 @@ class VbplService:
                         check_last_page = True
                         break
                     id_set.add(doc_id)
+                    full_id_list.append(doc_id)
+
+                    with LocalSession.begin() as session:
+                        statement = session.query(Vbpl).filter(Vbpl.id == doc_id)
+                        check_vbpl = session.execute(statement).all()
+                        if len(check_vbpl) != 0:
+                            progress += 1
+                            print(f"Progress: {progress}/{cls._default_row_per_page * 1000}")
+                            continue
 
                     new_vbpl = Vbpl(
                         id=doc_id,
@@ -127,21 +138,34 @@ class VbplService:
                     if vbpl_type == VbplType.PHAP_QUY:
                         await cls.crawl_vbpl_phapquy_info(new_vbpl)
                         await cls.search_concetti(new_vbpl)
-                        await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
+                        vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
+
+                        with LocalSession.begin() as session:
+                            session.add(new_vbpl)
+                            if vbpl_fulltext is not None:
+                                for fulltext_record in vbpl_fulltext:
+                                    session.add(fulltext_record)
+
                     elif vbpl_type == VbplType.HOP_NHAT:
                         await cls.crawl_vbpl_hopnhat_info(new_vbpl)
                         await cls.search_concetti(new_vbpl)
                         await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
-                    # print(new_vbpl)
+
+                        with LocalSession.begin() as session:
+                            session.add(new_vbpl)
+
+                    # update progress
+                    progress += 1
+                    print(f"Progress: {progress}/{cls._default_row_per_page * 1000}")
 
                 if check_last_page:
                     break
 
-                for doc_id in id_set:
-                    await cls.crawl_vbpl_related_doc(doc_id)
-                    await cls.crawl_vbpl_doc_map(doc_id, vbpl_type)
-
                 prev_id_set = id_set
+
+        for doc_id in full_id_list:
+            await cls.crawl_vbpl_related_doc(doc_id)
+            await cls.crawl_vbpl_doc_map(doc_id, vbpl_type)
 
     @classmethod
     def update_vbpl_phapquy_fulltext(cls, line, fulltext_obj: VbplFullTextField):
@@ -157,7 +181,7 @@ class VbplService:
             fulltext_obj.reset_part()
             check = True
 
-        if re.search(cls._find_chapter_regex, str(line)):
+        if re.search(cls._find_chapter_regex, line_content):
             fulltext_obj.current_chapter_number = re.findall('(?<=Chương ).+', line_content)[0]
             next_node = line.find_next_sibling('p')
             fulltext_obj.current_chapter_name = get_html_node_text(next_node)
@@ -165,8 +189,8 @@ class VbplService:
             fulltext_obj.reset_part()
             check = True
 
-        if re.search(cls._find_part_regex, str(line)) or re.search(cls._find_part_regex_2, str(line)):
-            if re.search(cls._find_part_regex, str(line)):
+        if re.search(cls._find_part_regex, line_content) or re.search(cls._find_part_regex_2, line_content):
+            if re.search(cls._find_part_regex, line_content):
                 fulltext_obj.current_part_number = re.findall('(?<=Mục ).+', line_content)[0]
             else:
                 fulltext_obj.current_part_number = re.findall('(?<=Mu.c ).+', line_content)[0]
@@ -174,7 +198,7 @@ class VbplService:
             fulltext_obj.current_part_name = get_html_node_text(next_node)
             check = True
 
-        if re.search(cls._find_mini_part_regex, str(line)):
+        if re.search(cls._find_mini_part_regex, line_content):
             fulltext_obj.current_mini_part_number = re.findall('(?<=Tiểu mục ).+', line_content)[0]
             next_node = line.find_next_sibling('p')
             fulltext_obj.current_mini_part_name = get_html_node_text(next_node)
@@ -188,6 +212,7 @@ class VbplService:
         query_params = {
             'ItemID': vbpl.id
         }
+        results = []
 
         try:
             resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
@@ -198,10 +223,11 @@ class VbplService:
         if resp.status == HTTPStatus.OK:
             soup = BeautifulSoup(await resp.text(), 'lxml')
             fulltext = soup.find('div', {"class": "toanvancontent"})
-            vbpl.html = str(fulltext)
 
-            with LocalSession.begin() as session:
-                session.add(vbpl)
+            if fulltext is None:
+                return None
+
+            vbpl.html = str(fulltext)
 
             lines = fulltext.find_all('p')
             vbpl_fulltext_obj = VbplFullTextField()
@@ -222,8 +248,10 @@ class VbplService:
                     section_number = int(section_number_search.group())
 
                     section_name = line_content[section_number_search.span()[1]:]
+                    section_name_refined = None
                     section_name_search = re.search('\\b\\w', section_name)
-                    section_name_refined = section_name[section_name_search.span()[0]:]
+                    if section_name_search:
+                        section_name_refined = section_name[section_name_search.span()[0]:]
 
                     current_fulltext_config = copy.deepcopy(vbpl_fulltext_obj)
                     content = []
@@ -243,25 +271,25 @@ class VbplService:
                         if re.search(cls._find_section_regex, str(next_node)) or re.search('_{2,}', str(next_node)):
                             section_content = '\n'.join(content)
 
-                            with LocalSession.begin() as session:
-                                new_fulltext_section = VbplToanVan(
-                                    vbpl_id=vbpl.id,
-                                    section_number=section_number,
-                                    section_name=section_name_refined,
-                                    section_content=section_content,
-                                    chapter_name=current_fulltext_config.current_chapter_name,
-                                    chapter_number=current_fulltext_config.current_chapter_number,
-                                    mini_part_name=current_fulltext_config.current_mini_part_name,
-                                    mini_part_number=current_fulltext_config.current_mini_part_number,
-                                    part_name=current_fulltext_config.current_part_name,
-                                    part_number=current_fulltext_config.current_part_number,
-                                    big_part_name=current_fulltext_config.current_big_part_name,
-                                    big_part_number=current_fulltext_config.current_big_part_number
-                                )
-                                session.add(new_fulltext_section)
+                            new_fulltext_section = VbplToanVan(
+                                vbpl_id=vbpl.id,
+                                section_number=section_number,
+                                section_name=section_name_refined,
+                                section_content=section_content,
+                                chapter_name=current_fulltext_config.current_chapter_name,
+                                chapter_number=current_fulltext_config.current_chapter_number,
+                                mini_part_name=current_fulltext_config.current_mini_part_name,
+                                mini_part_number=current_fulltext_config.current_mini_part_number,
+                                part_name=current_fulltext_config.current_part_name,
+                                part_number=current_fulltext_config.current_part_number,
+                                big_part_name=current_fulltext_config.current_big_part_name,
+                                big_part_number=current_fulltext_config.current_big_part_number
+                            )
+                            results.append(new_fulltext_section)
                             break
 
                         content.append(get_html_node_text(next_node))
+        return results
 
     @classmethod
     async def crawl_vbpl_hopnhat_fulltext(cls, vbpl: Vbpl):
@@ -305,9 +333,6 @@ class VbplService:
                         pdf_link = re.findall('.+.pdf', pdf_view_object.get('data'))[0]
                         vbpl.org_pdf_link = setting.VBPL_PDF_BASE_URL + pdf_link
                         vbpl.file_link = get_document(vbpl.org_pdf_link, True)
-
-            with LocalSession.begin() as session:
-                session.add(vbpl)
 
     @classmethod
     async def crawl_vbpl_hopnhat_info(cls, vbpl: Vbpl):
@@ -363,9 +388,14 @@ class VbplService:
 
             for link in file_links:
                 link_node = link.find_all('a')[0]
-                href = link_node['href']
-                file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
-                file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
+                if re.search('.+.pdf', get_html_node_text(link_node)) \
+                        or re.search('.+.doc', get_html_node_text(link_node)) \
+                        or re.search('.+.docx', get_html_node_text(link_node)):
+                    href = link_node['href']
+                    file_url = href
+                    if re.search('javascript:downloadfile', href):
+                        file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
+                    file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
             if len(file_urls) > 0:
                 local_links = []
                 for url in file_urls:
@@ -443,9 +473,12 @@ class VbplService:
 
             for link in file_links:
                 link_node = link.find_all('a')[0]
-                href = link_node['href']
-                file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
-                file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
+                if re.search('.+.pdf', get_html_node_text(link_node)) \
+                        or re.search('.+.doc', get_html_node_text(link_node)) \
+                        or re.search('.+.docx', get_html_node_text(link_node)):
+                    href = link_node['href']
+                    file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
+                    file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
 
             if len(file_urls) > 0:
                 local_links = []
@@ -527,7 +560,6 @@ class VbplService:
                                 search_resp = await cls.call(method='GET',
                                                              url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
                                                              query_params=convert_dict_to_pascal({
-                                                                 'is_viet_namese': True,
                                                                  'row_per_page': cls._default_row_per_page,
                                                                  'page': 1,
                                                                  'keyword': doc_title
@@ -573,7 +605,7 @@ class VbplService:
 
     @classmethod
     async def search_concetti(cls, vbpl: Vbpl):
-        aspx_url = f'/documents/search'
+        search_url = f'/documents/search'
         key_type = ['title', 'sub_title', 'serial_number']
         select_params = ('active,'
                          'slug,'
@@ -593,30 +625,36 @@ class VbplService:
         max_page = 2
         threshold = 0.8
         found = False
+        query_params = {
+            'target': 'document',
+            'sort': 'keyword',
+            'limit': 5,
+            'select': select_params
+        }
+        if vbpl.issuance_date is not None:
+            query_params['issueDateFrom'] = convert_datetime_to_str(vbpl.issuance_date)
+        if vbpl.effective_date is not None:
+            query_params['effectiveDateFrom'] = convert_datetime_to_str(vbpl.effective_date)
+        if vbpl.expiration_date is not None:
+            query_params['expiryDateFrom'] = convert_datetime_to_str(vbpl.expiration_date)
 
         for key in key_type:
             if found:
                 break
             search_key = getattr(vbpl, key)
+            if search_key is None:
+                continue
+            query_params['key'] = quote(search_key)
             for i in range(max_page):
                 if found:
                     break
-                query_params = {
-                    'target': 'document',
-                    'sort': 'keyword',
-                    'key': search_key,
-                    'issueDateFrom': vbpl.issuance_date,
-                    'effectiveDateFrom': vbpl.effective_date,
-                    'expiryDateFrom': vbpl.expiration_date,
-                    'page': i + 1,
-                    'limit': 5,
-                    'select': select_params
-                }
+                query_params['page'] = i + 1
+                params = concetti_query_params_url_encode(query_params)
                 try:
-                    async with aiohttp.ClientSession() as session:
+                    async with aiohttp.ClientSession(trust_env=True) as session:
                         async with session.request('GET',
-                                                   cls._concetti_base_url + aspx_url,
-                                                   params=query_params,
+                                                   yarl.URL(f'{cls._concetti_base_url + search_url}?{params}',
+                                                            encoded=True),
                                                    headers=cls.get_headers()
                                                    ) as resp:
                             await resp.text()
@@ -626,6 +664,7 @@ class VbplService:
                 if resp.status == HTTPStatus.OK:
                     raw_json = await resp.json()
                     result_items = raw_json['items']
+                    # print("Result", result_items)
                     if len(result_items) == 0:
                         continue
 
@@ -658,7 +697,11 @@ class VbplService:
                             branches_names = []
                             for branch in branches:
                                 branches_names.append(branch['name'])
-                            vbpl.sector = ' - '.join(branches_names)
+                            if len(branches_names) > 0:
+                                vbpl.sector = ' - '.join(branches_names)
 
                             found = True
                             break
+
+        if vbpl.sector is None:
+            vbpl.sector = 'Lĩnh vực khác'

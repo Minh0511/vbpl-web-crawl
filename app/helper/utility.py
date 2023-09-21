@@ -64,3 +64,19 @@ def get_html_node_text(html_node):
     if html_node:
         return html_node.text.strip()
     return None
+
+
+def convert_datetime_to_str(date):
+    month = date.month
+    if month < 10:
+        month = '0' + str(month)
+    day = date.day
+    if day < 10:
+        day = '0' + str(day)
+    if date is None:
+        return None
+    return f'{date.year}-{month}-{day}'
+
+
+def concetti_query_params_url_encode(query_params):
+    return "&".join("%s=%s" % (k,v) for k,v in query_params.items())
