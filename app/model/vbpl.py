@@ -7,17 +7,18 @@ class Vbpl(BareBaseModel):
     __tablename__ = 'vbpl'
 
     file_link = Column(String(200), nullable=True)
-    title = Column(String(100), nullable=False)
-    sub_title = Column(String(400), nullable=True)
+    title = Column(String(455), nullable=False)
+    sub_title = Column(String(1000), nullable=True)
     doc_type = Column(String(100), nullable=True)
     serial_number = Column(String(100), nullable=False)
-    issuance_date = Column(DateTime, nullable=False)
-    effective_date = Column(DateTime, nullable=False)
+    issuance_date = Column(DateTime, nullable=True)
+    effective_date = Column(DateTime, nullable=True)
     expiration_date = Column(DateTime, nullable=True)
-    gazette_date = Column(DateTime, nullable=False)
+    gazette_date = Column(DateTime, nullable=True)
     state = Column(String(100), nullable=True)
     issuing_authority = Column(String(100), nullable=True)
     applicable_information = Column(String(100), nullable=True)
+    sector = Column(String(100), nullable=True)
     html = Column(Text, nullable=True)
     org_pdf_link = Column(String(200), nullable=True)
 
@@ -63,6 +64,7 @@ class Vbpl(BareBaseModel):
                 f'issuing authority: {self.issuing_authority},\n'
                 f'html: {self.html},\n'
                 f'org_pdf_link: {self.org_pdf_link},\n'
+                f'sector: {self.sector}\n'
                 f'########################')
 
 

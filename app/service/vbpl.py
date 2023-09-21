@@ -6,7 +6,7 @@ from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
 
-import requests
+import aiohttp
 
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
@@ -17,6 +17,7 @@ from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text
 from app.helper.db import LocalSession
 from urllib.parse import quote
+import Levenshtein
 from bs4 import BeautifulSoup
 
 _logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ find_id_regex = '(?<=ItemID=)\\d+'
 
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
-    _default_row_per_page = 10
+    _default_row_per_page = 70
     _find_big_part_regex = '>((Phần)|(Phần thứ))'
     _find_section_regex = '>((Điều)|(Điều thứ))'
     _find_chapter_regex = '>Chương'
@@ -33,31 +34,33 @@ class VbplService:
     _find_part_regex_2 = '>Mu.c'
     _find_mini_part_regex = '>Tiểu mục'
     _empty_related_doc_msg = 'Nội dung đang cập nhật'
+    _concetti_base_url = setting.CONCETTI_BASE_URL
 
     @classmethod
     def get_headers(cls) -> Dict:
         return {'Content-Type': 'application/json'}
 
     @classmethod
-    def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=30):
+    async def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=30):
         url = cls._api_base_url + url_path
         headers = cls.get_headers()
         try:
-            resp: requests.Response = requests.request(method, url, params=query_params, json=json_data,
-                                                       headers=headers, timeout=timeout)
-            if resp.status_code != 200:
+            async with aiohttp.ClientSession() as session:
+                async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
+                                           headers=headers, verify_ssl=False) as resp:
+                    await resp.text()
+            if resp.status != HTTPStatus.OK:
                 _logger.warning(
                     "Calling VBPL URL: %s, request_param %s, request_payload %s, http_code: %s, response: %s" %
-                    (url, str(query_params), str(json_data), str(resp.status_code), resp.text))
+                    (url, str(query_params), str(json_data), str(resp.status), resp.text))
             return resp
         except Exception as e:
             _logger.warning(f"Calling VBPL URL: {url},"
                             f" request_params {str(query_params)}, request_body {str(json_data)},"
                             f" error {str(e)}")
-            raise e
 
     @classmethod
-    def get_total_doc(cls, vbpl_type: VbplType):
+    async def get_total_doc(cls, vbpl_type: VbplType):
         try:
             query_params = convert_dict_to_pascal({
                 'is_viet_namese': True,
@@ -65,25 +68,25 @@ class VbplService:
                 'page': 2
             })
 
-            resp = cls.call(method='GET',
-                            url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
-                            query_params=query_params)
+            resp = await cls.call(method='GET',
+                                  url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                  query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Get total doc')
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
             message = soup.find('div', {'class': 'message'})
             return int(message.find('strong').string)
 
     @classmethod
-    def crawl_vbpl_all(cls, vbpl_type: VbplType):
-        total_doc = cls.get_total_doc(vbpl_type)
+    async def crawl_all_vbpl(cls, vbpl_type: VbplType):
+        total_doc = await cls.get_total_doc(vbpl_type)
         total_pages = math.ceil(total_doc / cls._default_row_per_page)
         prev_id_set = set()
 
         for i in range(total_pages):
-            if i == 10:
+            if i == 2:
                 break
             query_params = convert_dict_to_pascal({
                 'is_viet_namese': True,
@@ -92,14 +95,14 @@ class VbplService:
             })
 
             try:
-                resp = cls.call(method='GET',
-                                url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
-                                query_params=query_params)
+                resp = await cls.call(method='GET',
+                                      url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                      query_params=query_params)
             except Exception as e:
                 _logger.exception(e)
                 raise CommonException(500, 'Crawl all doc')
-            if resp.status_code == HTTPStatus.OK:
-                soup = BeautifulSoup(resp.text, 'lxml')
+            if resp.status == HTTPStatus.OK:
+                soup = BeautifulSoup(await resp.text(), 'lxml')
                 titles = soup.find_all('p', {"class": "title"})
                 sub_titles = soup.find_all('div', {'class': "des"})
                 check_last_page = False
@@ -122,22 +125,23 @@ class VbplService:
                         sub_title=get_html_node_text(sub_title)
                     )
                     if vbpl_type == VbplType.PHAP_QUY:
-                        cls.crawl_vbpl_phapquy_info(new_vbpl)
-                        cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
+                        await cls.crawl_vbpl_phapquy_info(new_vbpl)
+                        await cls.search_concetti(new_vbpl)
+                        await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
                     elif vbpl_type == VbplType.HOP_NHAT:
-                        cls.crawl_vbpl_hopnhat_info(new_vbpl)
-                        cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
-                    print(new_vbpl)
+                        await cls.crawl_vbpl_hopnhat_info(new_vbpl)
+                        await cls.search_concetti(new_vbpl)
+                        await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
+                    # print(new_vbpl)
 
                 if check_last_page:
                     break
 
                 for doc_id in id_set:
-                    cls.crawl_vbpl_related_doc(doc_id)
-                    cls.crawl_vbpl_doc_map(doc_id, vbpl_type)
+                    await cls.crawl_vbpl_related_doc(doc_id)
+                    await cls.crawl_vbpl_doc_map(doc_id, vbpl_type)
 
                 prev_id_set = id_set
-            # break
 
     @classmethod
     def update_vbpl_phapquy_fulltext(cls, line, fulltext_obj: VbplFullTextField):
@@ -179,20 +183,20 @@ class VbplService:
         return fulltext_obj, check
 
     @classmethod
-    def crawl_vbpl_phapquy_fulltext(cls, vbpl: Vbpl):
+    async def crawl_vbpl_phapquy_fulltext(cls, vbpl: Vbpl):
         aspx_url = f'/TW/Pages/vbpq-{VbplTab.FULL_TEXT.value}.aspx'
         query_params = {
             'ItemID': vbpl.id
         }
 
         try:
-            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+            resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Crawl vbpl toan van')
 
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
             fulltext = soup.find('div', {"class": "toanvancontent"})
             vbpl.html = str(fulltext)
 
@@ -222,9 +226,6 @@ class VbplService:
                     section_name_refined = section_name[section_name_search.span()[0]:]
 
                     current_fulltext_config = copy.deepcopy(vbpl_fulltext_obj)
-                    # print(vbpl_fulltext_obj)
-                    # print("Điều", section_number)
-                    # print("Tên điều", section_name_refined)
                     content = []
 
                     next_node = line
@@ -241,7 +242,7 @@ class VbplService:
 
                         if re.search(cls._find_section_regex, str(next_node)) or re.search('_{2,}', str(next_node)):
                             section_content = '\n'.join(content)
-                            # print(section_content)
+
                             with LocalSession.begin() as session:
                                 new_fulltext_section = VbplToanVan(
                                     vbpl_id=vbpl.id,
@@ -263,7 +264,7 @@ class VbplService:
                         content.append(get_html_node_text(next_node))
 
     @classmethod
-    def crawl_vbpl_hopnhat_fulltext(cls, vbpl: Vbpl):
+    async def crawl_vbpl_hopnhat_fulltext(cls, vbpl: Vbpl):
         if vbpl.org_pdf_link is not None and vbpl.org_pdf_link.strip() != '':
             return
 
@@ -273,17 +274,17 @@ class VbplService:
         }
 
         try:
-            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+            resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Crawl vbpl hop nhat toan van')
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
             vbpl_view = soup.find('div', {'class': 'vbProperties'})
-            pdf_view_object = vbpl_view.find('object')
-            if pdf_view_object is not None:
-                pdf_link = re.findall('.+.pdf', pdf_view_object.get('data'))[0]
-                vbpl.org_pdf_link = setting.VBPL_PDF_BASE_URL + pdf_link
+            document_view_object = vbpl_view.find('object')
+            if document_view_object is not None:
+                document_link = re.findall('.+.pdf', document_view_object.get('data'))[0]
+                vbpl.org_pdf_link = setting.VBPL_PDF_BASE_URL + document_link
                 vbpl.file_link = get_document(vbpl.org_pdf_link, True)
             else:
                 aspx_url = f'/TW/Pages/vbpq-{VbplTab.FULL_TEXT_HOP_NHAT_2.value}.aspx'
@@ -292,12 +293,12 @@ class VbplService:
                 }
 
                 try:
-                    resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+                    resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
                 except Exception as e:
                     _logger.exception(e)
                     raise CommonException(500, 'Crawl vbpl hop nhat toan van')
-                if resp.status_code == HTTPStatus.OK:
-                    soup = BeautifulSoup(resp.text, 'lxml')
+                if resp.status == HTTPStatus.OK:
+                    soup = BeautifulSoup(await resp.text(), 'lxml')
                     vbpl_view = soup.find('div', {'class': 'vbProperties'})
                     pdf_view_object = vbpl_view.find('object')
                     if pdf_view_object is not None:
@@ -309,19 +310,19 @@ class VbplService:
                 session.add(vbpl)
 
     @classmethod
-    def crawl_vbpl_hopnhat_info(cls, vbpl: Vbpl):
+    async def crawl_vbpl_hopnhat_info(cls, vbpl: Vbpl):
         aspx_url = f'/TW/Pages/vbpq-{VbplTab.ATTRIBUTE_HOP_NHAT.value}.aspx'
         query_params = {
             'ItemID': vbpl.id
         }
 
         try:
-            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+            resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Crawl vbpl thuoc tinh')
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
 
             properties = soup.find('div', {"class": "vbProperties"})
             files = soup.find('ul', {'class': 'fileAttack'})
@@ -362,10 +363,9 @@ class VbplService:
 
             for link in file_links:
                 link_node = link.find_all('a')[0]
-                if re.search('.+.pdf', get_html_node_text(link_node)):
-                    href = link_node['href']
-                    file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
-                    file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
+                href = link_node['href']
+                file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
+                file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
             if len(file_urls) > 0:
                 local_links = []
                 for url in file_urls:
@@ -374,19 +374,19 @@ class VbplService:
                 vbpl.org_pdf_link = ' '.join(file_urls)
 
     @classmethod
-    def crawl_vbpl_phapquy_info(cls, vbpl: Vbpl):
+    async def crawl_vbpl_phapquy_info(cls, vbpl: Vbpl):
         aspx_url = f'/TW/Pages/vbpq-{VbplTab.ATTRIBUTE.value}.aspx'
         query_params = {
             'ItemID': vbpl.id
         }
 
         try:
-            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+            resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Crawl vbpl thuoc tinh')
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
 
             properties = soup.find('div', {"class": "vbProperties"})
             info = soup.find('div', {'class': 'vbInfo'})
@@ -443,10 +443,9 @@ class VbplService:
 
             for link in file_links:
                 link_node = link.find_all('a')[0]
-                if re.search('.+.pdf', get_html_node_text(link_node)):
-                    href = link_node['href']
-                    file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
-                    file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
+                href = link_node['href']
+                file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
+                file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
 
             if len(file_urls) > 0:
                 local_links = []
@@ -456,18 +455,18 @@ class VbplService:
                 vbpl.org_pdf_link = ' '.join(file_urls)
 
     @classmethod
-    def crawl_vbpl_related_doc(cls, vbpl_id):
+    async def crawl_vbpl_related_doc(cls, vbpl_id):
         aspx_url = f'/TW/Pages/vbpq-{VbplTab.RELATED_DOC.value}.aspx'
         query_params = {
             'ItemID': vbpl_id
         }
         try:
-            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+            resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Crawl vbpl van ban lien quan')
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
 
             related_doc_node = soup.find('div', {'class': 'vbLienQuan'})
             if related_doc_node is None or re.search(cls._empty_related_doc_msg, get_html_node_text(related_doc_node)):
@@ -494,7 +493,7 @@ class VbplService:
                     # print(new_vbpl_related_doc)
 
     @classmethod
-    def crawl_vbpl_doc_map(cls, vbpl_id, vbpl_type: VbplType):
+    async def crawl_vbpl_doc_map(cls, vbpl_id, vbpl_type: VbplType):
         aspx_url = f'/TW/Pages/vbpq-{VbplTab.DOC_MAP.value}.aspx'
         if vbpl_type == VbplType.HOP_NHAT:
             aspx_url = f'/TW/Pages/vbpq-{VbplTab.DOC_MAP_HOP_NHAT.value}.aspx'
@@ -502,12 +501,12 @@ class VbplService:
             'ItemID': vbpl_id
         }
         try:
-            resp = cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+            resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
         except Exception as e:
             _logger.exception(e)
             raise CommonException(500, 'Crawl vbpl luoc do')
-        if resp.status_code == HTTPStatus.OK:
-            soup = BeautifulSoup(resp.text, 'lxml')
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
             if vbpl_type == VbplType.PHAP_QUY:
                 doc_map_title_nodes = soup.find_all('div', {'class': re.compile('title')})
                 for doc_map_title_node in doc_map_title_nodes:
@@ -525,19 +524,19 @@ class VbplService:
                         else:
                             doc_title = link.text.strip()
                             try:
-                                search_resp = cls.call(method='GET',
-                                                       url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
-                                                       query_params=convert_dict_to_pascal({
-                                                           'is_viet_namese': True,
-                                                           'row_per_page': cls._default_row_per_page,
-                                                           'page': 1,
-                                                           'keyword': doc_title
-                                                       }))
+                                search_resp = await cls.call(method='GET',
+                                                             url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                                             query_params=convert_dict_to_pascal({
+                                                                 'is_viet_namese': True,
+                                                                 'row_per_page': cls._default_row_per_page,
+                                                                 'page': 1,
+                                                                 'keyword': doc_title
+                                                             }))
                             except Exception as e:
                                 _logger.exception(e)
                                 raise CommonException(500, 'Crawl vbpl luoc do')
-                            if search_resp.status_code == HTTPStatus.OK:
-                                search_soup = BeautifulSoup(search_resp.text, 'lxml')
+                            if search_resp.status == HTTPStatus.OK:
+                                search_soup = BeautifulSoup(await search_resp.text(), 'lxml')
                                 titles = search_soup.find_all('p', {"class": "title"})
                                 if len(titles) > 0:
                                     search_link = titles[0].find('a')
@@ -571,3 +570,95 @@ class VbplService:
                     with LocalSession.begin() as session:
                         session.add(new_vbpl_doc_map)
                     # print(new_vbpl_doc_map)
+
+    @classmethod
+    async def search_concetti(cls, vbpl: Vbpl):
+        aspx_url = f'/documents/search'
+        key_type = ['title', 'sub_title', 'serial_number']
+        select_params = ('active,'
+                         'slug,'
+                         'key,'
+                         'name,'
+                         'number,'
+                         'type%7B%7D,'
+                         'branches%7B%7D,'
+                         'issuingAgency%7B%7D,'
+                         'issueDate,'
+                         'effectiveDate,'
+                         'expiryDate,'
+                         'gazetteNumber,'
+                         'gazetteDate,'
+                         'createdAt')
+        date_format = '%Y-%m-%d'
+        max_page = 2
+        threshold = 0.8
+        found = False
+
+        for key in key_type:
+            if found:
+                break
+            search_key = getattr(vbpl, key)
+            for i in range(max_page):
+                if found:
+                    break
+                query_params = {
+                    'target': 'document',
+                    'sort': 'keyword',
+                    'key': search_key,
+                    'issueDateFrom': vbpl.issuance_date,
+                    'effectiveDateFrom': vbpl.effective_date,
+                    'expiryDateFrom': vbpl.expiration_date,
+                    'page': i + 1,
+                    'limit': 5,
+                    'select': select_params
+                }
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.request('GET',
+                                                   cls._concetti_base_url + aspx_url,
+                                                   params=query_params,
+                                                   headers=cls.get_headers()
+                                                   ) as resp:
+                            await resp.text()
+                except Exception as e:
+                    _logger.exception(e)
+                    raise CommonException(500, 'Search using concetti')
+                if resp.status == HTTPStatus.OK:
+                    raw_json = await resp.json()
+                    result_items = raw_json['items']
+                    if len(result_items) == 0:
+                        continue
+
+                    for item in result_items:
+                        if (Levenshtein.ratio(search_key, item['name']) >= threshold
+                                or Levenshtein.ratio(search_key, item['number']) >= threshold
+                                or Levenshtein.ratio(search_key, item['key']) >= threshold):
+
+                            # Update effective date, expiry date and state of vbpl
+                            effective_date_str = item['effectiveDate']
+                            expiry_date_str = item['expiryDate']
+                            if effective_date_str is not None:
+                                effective_date = datetime.strptime(effective_date_str, date_format)
+                                vbpl.effective_date = effective_date
+                                if effective_date > datetime.now():
+                                    vbpl.state = 'Chưa có hiệu lực'
+                                else:
+                                    if expiry_date_str is None:
+                                        vbpl.state = 'Có hiệu lực'
+                                    else:
+                                        expiry_date = datetime.strptime(expiry_date_str, date_format)
+                                        vbpl.expiration_date = expiry_date
+                                        if expiry_date < datetime.now():
+                                            vbpl.state = 'Hết hiệu lực'
+                                        else:
+                                            vbpl.state = 'Có hiệu lực'
+
+                            # get vbpl sector
+                            branches = item['branches']
+                            branches_names = []
+                            for branch in branches:
+                                branches_names.append(branch['name'])
+                            vbpl.sector = ' - '.join(branches_names)
+
+                            found = True
+                            break

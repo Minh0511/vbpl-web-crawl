@@ -15,9 +15,6 @@ from app.service.anle import AnleService
 
 from app.service.vbpl import VbplService
 
-# vbpl_service = VbplService()
+vbpl_service = VbplService()
 anle_service = AnleService()
-
-# test_anle = Anle(doc_id='TAND292159')
-# asyncio.run(anle_service.crawl_anle_info(test_anle))
-asyncio.run(anle_service.crawl_all_anle())
+# asyncio.run(anle_service.crawl_all_anle())

@@ -8,7 +8,6 @@ from typing import Dict
 import aiohttp
 import pdfplumber
 from bs4 import BeautifulSoup
-from docx2pdf import convert
 
 from app.helper.constant import AnleSectionConst
 from app.helper.custom_exception import CommonException
@@ -35,19 +34,17 @@ class AnleService:
         url = cls._api_base_url + url_path
         headers = cls.get_headers()
         try:
-            # resp: requests.Response = requests.request(method, url, params=query_params, json=json_data,
-            #                                            headers=headers, timeout=timeout, verify=False)
             async with aiohttp.ClientSession() as session:
                 async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
                                            headers=headers, verify_ssl=False) as resp:
                     await resp.text()
             if resp.status != HTTPStatus.OK:
                 _logger.warning(
-                    "Calling VBPL URL: %s, request_param %s, request_payload %s, http_code: %s, response: %s" %
+                    "Calling Anle URL: %s, request_param %s, request_payload %s, http_code: %s, response: %s" %
                     (url, str(query_params), str(json_data), str(resp.status), resp.text))
             return resp
         except Exception as e:
-            _logger.warning(f"Calling VBPL URL: {url},"
+            _logger.warning(f"Calling Anle URL: {url},"
                             f" request_params {str(query_params)}, request_body {str(json_data)},"
                             f" error {str(e)}")
             raise e
@@ -131,8 +128,6 @@ class AnleService:
         current_page = 1
         anle_ids = []
         while True:
-            if current_page == 11:
-                break
             query_params = {
                 'selectedPage': current_page,
                 'docType': 'AnLe',

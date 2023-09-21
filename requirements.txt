@@ -12,3 +12,5 @@ urllib3==1.26.16
 ghostscript=0.7.0
 aiohttp==3.8.5
 bs4~=0.0.1
+aspose-words==23.9.0
+Levenshtein==0.21.1
