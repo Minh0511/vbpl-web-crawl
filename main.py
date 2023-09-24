@@ -48,10 +48,7 @@ def crawl_anle_by_id(id):
 
 def crawl_vbpl_by_id(id):
     print(f"Đang cào dữ liệu của vbpl có id: {id}")
-    new_vbpl = Vbpl(
-        id=id,
-    )
-    asyncio.run(vbpl_service.crawl_vbpl_hopnhat_info(new_vbpl))
+    asyncio.run(vbpl_service.crawl_vbpl_by_id(id))
     print("Cào dữ liệu hoàn tất")
 
 

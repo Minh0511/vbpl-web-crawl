@@ -300,6 +300,7 @@ class VbplService:
         query_params = {
             'ItemID': vbpl.id
         }
+        print(vbpl)
 
         try:
             resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
@@ -351,6 +352,12 @@ class VbplService:
 
             properties = soup.find('div', {"class": "vbProperties"})
             files = soup.find('ul', {'class': 'fileAttack'})
+
+            bread_crumbs = soup.find('div', {"class": "box-map"})
+            title = bread_crumbs.find('a', {"href": ""})
+            vbpl.title = title.text.strip()
+            sub_title = soup.find('td', {'class': 'title'})
+            vbpl.sub_title = sub_title.text.strip()
 
             table_rows = properties.find_all('tr')
             date_format = '%d/%m/%Y'
@@ -421,6 +428,12 @@ class VbplService:
             properties = soup.find('div', {"class": "vbProperties"})
             info = soup.find('div', {'class': 'vbInfo'})
             files = soup.find('ul', {'class': 'fileAttack'})
+
+            bread_crumbs = soup.find('div', {"class": "box-map"})
+            title = bread_crumbs.find('a', {"href": ""})
+            vbpl.title = title.text.strip()
+            sub_title = soup.find('td', {'class': 'title'})
+            vbpl.sub_title = sub_title.text.strip()
 
             table_rows = properties.find_all('tr')
 
@@ -705,3 +718,24 @@ class VbplService:
 
         if vbpl.sector is None:
             vbpl.sector = 'Lĩnh vực khác'
+
+    @classmethod
+    async def crawl_vbpl_by_id(cls, vbpl_id):
+        new_vbpl = Vbpl(
+            id=vbpl_id,
+        )
+        await cls.crawl_vbpl_phapquy_info(new_vbpl)
+        await cls.search_concetti(new_vbpl)
+        vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
+        if vbpl_fulltext is None:
+            await cls.crawl_vbpl_hopnhat_info(new_vbpl)
+            await cls.search_concetti(new_vbpl)
+            await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
+            with LocalSession.begin() as session:
+                session.add(new_vbpl)
+        else:
+            with LocalSession.begin() as session:
+                session.add(new_vbpl)
+                if vbpl_fulltext is not None:
+                    for fulltext_record in vbpl_fulltext:
+                        session.add(fulltext_record)
