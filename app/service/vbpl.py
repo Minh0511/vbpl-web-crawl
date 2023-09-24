@@ -64,13 +64,13 @@ class VbplService:
     @classmethod
     async def get_total_doc(cls, vbpl_type: VbplType):
         try:
-            query_params = convert_dict_to_pascal({
+            query_params = ({
                 'row_per_page': cls._default_row_per_page,
-                'page': 2
+                'page': 2,
             })
 
             resp = await cls.call(method='GET',
-                                  url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                  url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx?IsVietNamese=True',
                                   query_params=query_params)
         except Exception as e:
             _logger.exception(e)
@@ -98,7 +98,7 @@ class VbplService:
 
             try:
                 resp = await cls.call(method='GET',
-                                      url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                      url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx?IsVietNamese=True',
                                       query_params=query_params)
             except Exception as e:
                 _logger.exception(e)
@@ -558,7 +558,7 @@ class VbplService:
                             doc_title = link.text.strip()
                             try:
                                 search_resp = await cls.call(method='GET',
-                                                             url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                                             url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx?IsVietNamese=True',
                                                              query_params=convert_dict_to_pascal({
                                                                  'row_per_page': cls._default_row_per_page,
                                                                  'page': 1,

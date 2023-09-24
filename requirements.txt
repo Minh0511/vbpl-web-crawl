@@ -14,3 +14,4 @@ aiohttp==3.8.5
 bs4~=0.0.1
 aspose-words==23.9.0
 Levenshtein==0.21.1
+yarl~=1.9.2

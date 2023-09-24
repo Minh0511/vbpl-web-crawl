@@ -51,7 +51,7 @@ def crawl_vbpl_by_id(id):
     new_vbpl = Vbpl(
         id=id,
     )
-    asyncio.run(vbpl_service.crawl_vbpl_phapquy_info(new_vbpl))
+    asyncio.run(vbpl_service.crawl_vbpl_hopnhat_info(new_vbpl))
     print("Cào dữ liệu hoàn tất")
 
 
