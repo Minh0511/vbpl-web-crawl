@@ -732,9 +732,6 @@ class VbplService:
         new_vbpl = Vbpl(
             id=vbpl_id,
         )
-        await cls.crawl_vbpl_phapquy_info(new_vbpl)
-        await cls.search_concetti(new_vbpl)
-        vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
         if vbpl_type == VbplType.HOP_NHAT:
             await cls.crawl_vbpl_hopnhat_info(new_vbpl)
             await cls.search_concetti(new_vbpl)
@@ -742,6 +739,9 @@ class VbplService:
             with LocalSession.begin() as session:
                 session.add(new_vbpl)
         else:
+            await cls.crawl_vbpl_phapquy_info(new_vbpl)
+            await cls.search_concetti(new_vbpl)
+            vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
             with LocalSession.begin() as session:
                 session.add(new_vbpl)
                 if vbpl_fulltext is not None:
