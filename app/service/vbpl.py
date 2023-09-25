@@ -64,7 +64,7 @@ class VbplService:
     @classmethod
     async def get_total_doc(cls, vbpl_type: VbplType):
         try:
-            query_params = ({
+            query_params = convert_dict_to_pascal({
                 'row_per_page': cls._default_row_per_page,
                 'page': 2,
             })
@@ -728,14 +728,14 @@ class VbplService:
             vbpl.sector = 'Lĩnh vực khác'
 
     @classmethod
-    async def crawl_vbpl_by_id(cls, vbpl_id):
+    async def crawl_vbpl_by_id(cls, vbpl_id, vbpl_type: VbplType):
         new_vbpl = Vbpl(
             id=vbpl_id,
         )
         await cls.crawl_vbpl_phapquy_info(new_vbpl)
         await cls.search_concetti(new_vbpl)
         vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
-        if vbpl_fulltext is None:
+        if vbpl_type == VbplType.HOP_NHAT:
             await cls.crawl_vbpl_hopnhat_info(new_vbpl)
             await cls.search_concetti(new_vbpl)
             await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)

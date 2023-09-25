@@ -46,9 +46,15 @@ def crawl_anle_by_id(id):
     print("Cào dữ liệu hoàn tất")
 
 
-def crawl_vbpl_by_id(id):
-    print(f"Đang cào dữ liệu của vbpl có id: {id}")
-    asyncio.run(vbpl_service.crawl_vbpl_by_id(id))
+def crawl_vbpl_by_id_phap_quy(id):
+    print(f"Đang cào dữ liệu của văn bản pháp quy có id: {id}")
+    asyncio.run(vbpl_service.crawl_vbpl_by_id(id, VbplType.PHAP_QUY))
+    print("Cào dữ liệu hoàn tất")
+
+
+def crawl_vbpl_by_id_hop_nhat(id):
+    print(f"Đang cào dữ liệu của văn bản hợp nhất có id: {id}")
+    asyncio.run(vbpl_service.crawl_vbpl_by_id(id, VbplType.HOP_NHAT))
     print("Cào dữ liệu hoàn tất")
 
 
@@ -64,10 +70,11 @@ def print_menu():
 ║ 1. Cào dữ liệu vbpl - văn bản pháp quy               ║
 ║ 2. Cào dữ liệu vbpl - văn bản hợp nhất               ║
 ║ 3. Cào toàn bộ dữ liệu án lệ                         ║
-║ 4. Cào văn bản pháp luật bằng ID                     ║
-║ 5. Cào án lệ bằng ID                                 ║
-║ 6. --help                                            ║
-║ 7. Thoát                                             ║
+║ 4. Cào văn bản pháp quy bằng ID                      ║
+║ 5. Cào văn bản hợp nhất bằng ID                      ║
+║ 6. Cào án lệ bằng ID                                 ║
+║ 7. --help                                            ║
+║ 8. Thoát                                             ║
 ╚══════════════════════════════════════════════════════╝
 """
     print(menu)
@@ -86,16 +93,19 @@ def main():
             elif choice == "3":
                 craw_all_anle()
             elif choice == "4":
-                vbpl_id = input("Nhập ID văn bản: ")
-                crawl_vbpl_by_id(vbpl_id)
+                vbpl_id = input("Nhập ID văn bản pháp quy: ")
+                crawl_vbpl_by_id_phap_quy(vbpl_id)
             elif choice == "5":
+                vbpl_id = input("Nhập ID văn bản hợp nhất: ")
+                crawl_vbpl_by_id_hop_nhat(vbpl_id)
+            elif choice == "6":
                 anle_id = input("Nhập ID án lệ: ")
                 crawl_anle_by_id(anle_id)
-            elif choice == "7":
+            elif choice == "7" or choice == "--help":
+                print_menu()  # Display the menu again
+            elif choice == "8":
                 print("Đang thoát chương trình.")
                 break
-            elif choice == "6" or choice == "--help":
-                print_menu()  # Display the menu again
             else:
                 print("Yêu cầu không hợp lệ, để biết các câu lệnh cần dùng, nhập 6 hoặc --help.")
     except KeyboardInterrupt:
