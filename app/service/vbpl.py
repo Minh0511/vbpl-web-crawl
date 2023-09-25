@@ -300,7 +300,6 @@ class VbplService:
         query_params = {
             'ItemID': vbpl.id
         }
-        print(vbpl)
 
         try:
             resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
@@ -374,9 +373,14 @@ class VbplService:
                 if re.search(regex_dict[field], str(node)):
                     field_value_node = node.find_next_sibling('td')
                     if field_value_node:
+                        if field == 'effective_date':
+                            field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
+                            if field_value < datetime.now():
+                                vbpl.state = "Có hiệu lực"
                         if field == 'effective_date' or field == 'gazette_date':
                             try:
                                 field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
+                                print(field_value)
                             except ValueError:
                                 field_value = None
                         else:
@@ -456,6 +460,10 @@ class VbplService:
                 if re.search(regex_dict[field], str(node)):
                     field_value_node = node.find_next_sibling('td')
                     if field_value_node:
+                        if field == 'effective_date':
+                            field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
+                            if field_value < datetime.now():
+                                vbpl.state = "Có hiệu lực"
                         if field == 'issuance_date' or field == 'effective_date' or field == 'gazette_date':
                             try:
                                 field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
