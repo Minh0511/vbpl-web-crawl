@@ -58,6 +58,18 @@ def crawl_vbpl_by_id_hop_nhat(id):
     print("Cào dữ liệu hoàn tất")
 
 
+def fetch_vbpl_by_id(id):
+    print(f"Đang lấy dữ liệu của văn bản pháp luật có id: {id}")
+    asyncio.run(vbpl_service.fetch_vbpl_by_id(id))
+    print("Lấy dữ liệu hoàn tất")
+
+
+def fetch_anle_by_id(id):
+    print(f"Đang lấy dữ liệu của án lệ có id: {id}")
+    asyncio.run(anle_service.fetch_anle_by_id(id))
+    print("Lấy dữ liệu hoàn tất")
+
+
 def print_menu():
     menu = """
 ╔══════════════════════════════════════════════════════╗
@@ -73,8 +85,10 @@ def print_menu():
 ║ 4. Cào văn bản pháp quy bằng ID                      ║
 ║ 5. Cào văn bản hợp nhất bằng ID                      ║
 ║ 6. Cào án lệ bằng ID                                 ║
-║ 7. --help                                            ║
-║ 8. Thoát                                             ║
+║ 7. Tìm vbpl theo ID                                  ║
+║ 8. Tìm án lệ theo ID                                 ║
+║ 9. --help                                            ║
+║ 10. Thoát                                            ║
 ╚══════════════════════════════════════════════════════╝
 """
     print(menu)
@@ -101,9 +115,15 @@ def main():
             elif choice == "6":
                 anle_id = input("Nhập ID án lệ: ")
                 crawl_anle_by_id(anle_id)
-            elif choice == "7" or choice == "--help":
-                print_menu()  # Display the menu again
+            elif choice == "7":
+                vbpl_id = input("Nhập ID vbpl: ")
+                fetch_vbpl_by_id(vbpl_id)
             elif choice == "8":
+                anle_id = input("Nhập ID án lệ: ")
+                fetch_anle_by_id(anle_id)
+            elif choice == "9" or choice == "--help":
+                print_menu()  # Display the menu again
+            elif choice == "10":
                 print("Đang thoát chương trình.")
                 break
             else:

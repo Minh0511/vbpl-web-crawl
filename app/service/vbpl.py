@@ -5,6 +5,7 @@ import copy
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
+from sqlalchemy import update
 
 import aiohttp
 import yarl
@@ -12,7 +13,7 @@ import yarl
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
-from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap
+from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap, Anle
 from app.service.get_pdf import get_document
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text, convert_datetime_to_str, \
@@ -747,3 +748,18 @@ class VbplService:
                 if vbpl_fulltext is not None:
                     for fulltext_record in vbpl_fulltext:
                         session.add(fulltext_record)
+
+    @classmethod
+    async def fetch_vbpl_by_id(cls, vbpl_id):
+        with LocalSession.begin() as session:
+            target_vbpl = session.query(Vbpl).filter(Vbpl.id == vbpl_id).order_by(Vbpl.updated_at.desc()).first()
+            if target_vbpl.effective_date < datetime.now() and target_vbpl.state == "Chưa có hiệu lực":
+                target_vbpl.state = "Có hiệu lực"
+                values_to_update = {
+                    Vbpl.state: "Có hiệu lực"
+                }
+                update_statement = update(Vbpl).where(Vbpl.id == vbpl_id).values(values_to_update)
+                session.execute(update_statement)
+
+        print(target_vbpl)
+        return target_vbpl

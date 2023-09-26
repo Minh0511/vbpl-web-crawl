@@ -252,3 +252,11 @@ class AnleService:
                     content=anle_content,
                 )
                 session.add(new_anle_section)
+
+    @classmethod
+    async def fetch_anle_by_id(cls, anle_id):
+        with LocalSession.begin() as session:
+            target_anle = session.query(Anle).filter(Anle.doc_id == anle_id).order_by(Anle.updated_at.desc()).first()
+
+        print(target_anle)
+        return target_anle
