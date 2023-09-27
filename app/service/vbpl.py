@@ -381,7 +381,6 @@ class VbplService:
                         if field == 'effective_date' or field == 'gazette_date':
                             try:
                                 field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
-                                print(field_value)
                             except ValueError:
                                 field_value = None
                         else:
@@ -752,7 +751,11 @@ class VbplService:
     @classmethod
     async def fetch_vbpl_by_id(cls, vbpl_id):
         with LocalSession.begin() as session:
-            target_vbpl = session.query(Vbpl).filter(Vbpl.id == vbpl_id).order_by(Vbpl.updated_at.desc()).first()
+            target_vbpl = session.query(Vbpl, VbplDocMap, VbplToanVan).\
+                join(VbplDocMap, Vbpl.id == VbplDocMap.source_id).\
+                join(VbplToanVan, VbplDocMap.source_id == VbplToanVan.vbpl_id).\
+                where(Vbpl.id == vbpl_id).order_by(Vbpl.updated_at.desc())
+
             if target_vbpl.effective_date < datetime.now() and target_vbpl.state == "Chưa có hiệu lực":
                 target_vbpl.state = "Có hiệu lực"
                 values_to_update = {

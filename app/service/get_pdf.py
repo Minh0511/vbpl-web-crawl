@@ -17,6 +17,7 @@ def get_anle_file_name(response):
 
 
 def get_document(document_url, is_vbpl):
+    document_url = clean_extension(document_url)
     try:
         pdf_folder_path = 'documents/pdf/anle_pdf'
         doc_folder_path = 'documents/doc/anle_doc'
@@ -25,8 +26,7 @@ def get_document(document_url, is_vbpl):
             doc_folder_path = 'documents/doc/vbpl_doc'
 
         os.makedirs(pdf_folder_path, exist_ok=True)
-        os.makedirs(doc_folder_path, exist_ok=True)\
-
+        os.makedirs(doc_folder_path, exist_ok=True)
         file_id = get_file_id(document_url, is_vbpl)
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -79,3 +79,11 @@ def get_file_id(document_url, is_vbpl):
     else:
         file_id = "noId"
     return file_id
+
+
+def clean_extension(filename):
+    pattern = r'\.{2}(docx?|pdf)$'
+
+    cleaned_filename = re.sub(pattern, r'.\1', filename)
+
+    return cleaned_filename
