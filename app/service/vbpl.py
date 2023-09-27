@@ -374,10 +374,6 @@ class VbplService:
                 if re.search(regex_dict[field], str(node)):
                     field_value_node = node.find_next_sibling('td')
                     if field_value_node:
-                        if field == 'effective_date':
-                            field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
-                            if field_value < datetime.now():
-                                vbpl.state = "Có hiệu lực"
                         if field == 'effective_date' or field == 'gazette_date':
                             try:
                                 field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
@@ -460,10 +456,6 @@ class VbplService:
                 if re.search(regex_dict[field], str(node)):
                     field_value_node = node.find_next_sibling('td')
                     if field_value_node:
-                        if field == 'effective_date':
-                            field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
-                            if field_value < datetime.now():
-                                vbpl.state = "Có hiệu lực"
                         if field == 'issuance_date' or field == 'effective_date' or field == 'gazette_date':
                             try:
                                 field_value = datetime.strptime(get_html_node_text(field_value_node), date_format)
