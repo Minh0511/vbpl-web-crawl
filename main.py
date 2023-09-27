@@ -24,17 +24,19 @@ anle_service = AnleService()
 
 test_vbpl = Vbpl(
     id=32801,
-    title='Luật 31/VBHN-VPQH',
-    sub_title='hợp nhất Luật Xử lý vi phạm hành chính',
+    title='Hiến pháp không số',
+    sub_title='Hiến pháp năm 2013',
 )
 #
 # asyncio.run(vbpl_service.crawl_vbpl_phapquy_info(test_vbpl))
 # asyncio.run(vbpl_service.search_concetti(test_vbpl))
 # asyncio.run(vbpl_service.crawl_vbpl_phapquy_fulltext(test_vbpl))
 #
-asyncio.run(vbpl_service.crawl_vbpl_hopnhat_info(test_vbpl))
+# asyncio.run(vbpl_service.crawl_vbpl_hopnhat_info(test_vbpl))
 # asyncio.run(vbpl_service.search_concetti(test_vbpl))
 # asyncio.run(vbpl_service.crawl_vbpl_hopnhat_fulltext(test_vbpl))
+
+asyncio.run(vbpl_service.additional_html_crawl(test_vbpl))
 
 print(test_vbpl)
 # asyncio.run(anle_service.crawl_all_anle())

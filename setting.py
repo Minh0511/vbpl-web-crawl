@@ -16,6 +16,7 @@ class Setting(BaseSettings):
     SQLALCHEMY_DATABASE_URI: str = os.getenv('SQLALCHEMY_DATABASE_URI')
     CONCETTI_BASE_URL: str = os.getenv('CONCETTI_BASE_URL')
     TVPL_BASE_URL: str = os.getenv('TVPL_BASE_URL')
+    CONG_BAO_BASE_URL: str = os.getenv('CONG_BAO_BASE_URL')
 
 
 setting = Setting()

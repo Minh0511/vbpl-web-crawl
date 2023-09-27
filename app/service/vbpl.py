@@ -38,6 +38,7 @@ class VbplService:
     _empty_related_doc_msg = 'Nội dung đang cập nhật'
     _concetti_base_url = setting.CONCETTI_BASE_URL
     _tvpl_base_url = setting.TVPL_BASE_URL
+    _cong_bao_base_url = setting.CONG_BAO_BASE_URL
 
     @classmethod
     def get_headers(cls) -> Dict:
@@ -715,6 +716,28 @@ class VbplService:
                             if len(branches_names) > 0:
                                 vbpl.sector = ' - '.join(branches_names)
 
+                            # fetch pdf if needed
+                            if vbpl.org_pdf_link is None or vbpl.org_pdf_link.strip() == '':
+                                slug = item['slug']
+                                doc_url = '/documents/slug'
+                                try:
+                                    async with aiohttp.ClientSession(trust_env=True) as session:
+                                        async with session.request('GET',
+                                                                   f'{cls._concetti_base_url + doc_url}/{slug}',
+                                                                   headers=cls.get_headers()
+                                                                   ) as doc_resp:
+                                            await doc_resp.text()
+                                except Exception as e:
+                                    _logger.exception(e)
+                                    raise CommonException(500, 'Search using concetti')
+                                if resp.status == HTTPStatus.OK:
+                                    raw_doc_json = await doc_resp.json()
+                                    pdf_id = raw_doc_json['pdfFile']
+                                    if pdf_id is not None:
+                                        pdf_url = f'{cls._concetti_base_url}/files/{pdf_id}/fetch'
+                                        vbpl.org_pdf_link = pdf_url
+                                        vbpl.file_link = get_document(pdf_url, True, pdf_id, True)
+
                             found = True
                             break
 
@@ -745,7 +768,7 @@ class VbplService:
                 async with aiohttp.ClientSession(trust_env=True) as session:
                     async with session.request('GET',
                                                cls._tvpl_base_url + search_url,
-                                               query_params=query_params,
+                                               params=query_params,
                                                headers=cls.get_headers()
                                                ) as resp:
                         await resp.text()
@@ -783,7 +806,3 @@ class VbplService:
                             lines = full_text.find_all('p')
                             results = cls.process_html_full_text(vbpl, lines)
         return results
-
-    @classmethod
-    async def additional_pdf_crawl(cls, vbpl):
-        pass

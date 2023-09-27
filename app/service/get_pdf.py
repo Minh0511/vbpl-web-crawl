@@ -16,7 +16,7 @@ def get_anle_file_name(response):
     return None
 
 
-def get_document(document_url, is_vbpl):
+def get_document(document_url, is_vbpl, file_id=None, is_pdf_file=None):
     try:
         pdf_folder_path = 'documents/pdf/anle_pdf'
         doc_folder_path = 'documents/doc/anle_doc'
@@ -27,7 +27,8 @@ def get_document(document_url, is_vbpl):
         os.makedirs(pdf_folder_path, exist_ok=True)
         os.makedirs(doc_folder_path, exist_ok=True)\
 
-        file_id = get_file_id(document_url, is_vbpl)
+        if file_id is None:
+            file_id = get_file_id(document_url, is_vbpl)
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         response = requests.get(document_url, verify=False)
@@ -42,7 +43,14 @@ def get_document(document_url, is_vbpl):
 
         decoded_file_name = urllib.parse.unquote(document_file_name)
 
-        file_name = f"({file_id})-{decoded_file_name.replace(' ', '_').replace('%', '_')}"
+        if file_id is None:
+            file_name = f"({file_id})-{decoded_file_name.replace(' ', '_').replace('%', '_')}"
+        else:
+            if is_pdf_file:
+                file_name = f"{file_id}.pdf"
+            else:
+                file_name = f"{file_id}.doc"
+
         if is_pdf(file_name):
             file_path = os.path.join(pdf_folder_path, file_name)
         else:
