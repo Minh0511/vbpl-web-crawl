@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 class Vbpl(BareBaseModel):
     __tablename__ = 'vbpl'
 
-    file_link = Column(String(200), nullable=True)
+    file_link = Column(String(1000), nullable=True)
     title = Column(String(455), nullable=False)
     sub_title = Column(String(1000), nullable=True)
     doc_type = Column(String(100), nullable=True)

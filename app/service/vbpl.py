@@ -5,6 +5,7 @@ import copy
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
+from sqlalchemy import update
 
 import aiohttp
 import yarl
@@ -12,7 +13,7 @@ import yarl
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
-from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap
+from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap, Anle
 from app.service.get_pdf import get_document
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text, convert_datetime_to_str, \
@@ -66,11 +67,11 @@ class VbplService:
         try:
             query_params = convert_dict_to_pascal({
                 'row_per_page': cls._default_row_per_page,
-                'page': 2
+                'page': 2,
             })
 
             resp = await cls.call(method='GET',
-                                  url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                  url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx?IsVietNamese=True',
                                   query_params=query_params)
         except Exception as e:
             _logger.exception(e)
@@ -98,7 +99,7 @@ class VbplService:
 
             try:
                 resp = await cls.call(method='GET',
-                                      url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                      url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx?IsVietNamese=True',
                                       query_params=query_params)
             except Exception as e:
                 _logger.exception(e)
@@ -352,6 +353,12 @@ class VbplService:
             properties = soup.find('div', {"class": "vbProperties"})
             files = soup.find('ul', {'class': 'fileAttack'})
 
+            bread_crumbs = soup.find('div', {"class": "box-map"})
+            title = bread_crumbs.find('a', {"href": ""})
+            vbpl.title = title.text.strip()
+            sub_title = soup.find('td', {'class': 'title'})
+            vbpl.sub_title = sub_title.text.strip()
+
             table_rows = properties.find_all('tr')
             date_format = '%d/%m/%Y'
 
@@ -421,6 +428,12 @@ class VbplService:
             properties = soup.find('div', {"class": "vbProperties"})
             info = soup.find('div', {'class': 'vbInfo'})
             files = soup.find('ul', {'class': 'fileAttack'})
+
+            bread_crumbs = soup.find('div', {"class": "box-map"})
+            title = bread_crumbs.find('a', {"href": ""})
+            vbpl.title = title.text.strip()
+            sub_title = soup.find('td', {'class': 'title'})
+            vbpl.sub_title = sub_title.text.strip()
 
             table_rows = properties.find_all('tr')
 
@@ -558,7 +571,7 @@ class VbplService:
                             doc_title = link.text.strip()
                             try:
                                 search_resp = await cls.call(method='GET',
-                                                             url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx',
+                                                             url_path=f'/VBQPPL_UserControls/Publishing_22/TimKiem/p_{vbpl_type.value}.aspx?IsVietNamese=True',
                                                              query_params=convert_dict_to_pascal({
                                                                  'row_per_page': cls._default_row_per_page,
                                                                  'page': 1,
@@ -705,3 +718,43 @@ class VbplService:
 
         if vbpl.sector is None:
             vbpl.sector = 'Lĩnh vực khác'
+
+    @classmethod
+    async def crawl_vbpl_by_id(cls, vbpl_id, vbpl_type: VbplType):
+        new_vbpl = Vbpl(
+            id=vbpl_id,
+        )
+        if vbpl_type == VbplType.HOP_NHAT:
+            await cls.crawl_vbpl_hopnhat_info(new_vbpl)
+            await cls.search_concetti(new_vbpl)
+            await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
+            with LocalSession.begin() as session:
+                session.add(new_vbpl)
+        else:
+            await cls.crawl_vbpl_phapquy_info(new_vbpl)
+            await cls.search_concetti(new_vbpl)
+            vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
+            with LocalSession.begin() as session:
+                session.add(new_vbpl)
+                if vbpl_fulltext is not None:
+                    for fulltext_record in vbpl_fulltext:
+                        session.add(fulltext_record)
+
+    @classmethod
+    async def fetch_vbpl_by_id(cls, vbpl_id):
+        with LocalSession.begin() as session:
+            target_vbpl = session.query(Vbpl, VbplDocMap, VbplToanVan).\
+                join(VbplDocMap, Vbpl.id == VbplDocMap.source_id).\
+                join(VbplToanVan, VbplDocMap.source_id == VbplToanVan.vbpl_id).\
+                where(Vbpl.id == vbpl_id).order_by(Vbpl.updated_at.desc())
+
+            if target_vbpl.effective_date < datetime.now() and target_vbpl.state == "Chưa có hiệu lực":
+                target_vbpl.state = "Có hiệu lực"
+                values_to_update = {
+                    Vbpl.state: "Có hiệu lực"
+                }
+                update_statement = update(Vbpl).where(Vbpl.id == vbpl_id).values(values_to_update)
+                session.execute(update_statement)
+
+        print(target_vbpl)
+        return target_vbpl

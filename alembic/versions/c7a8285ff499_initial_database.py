@@ -7,6 +7,7 @@ Create Date: 2023-09-06 11:08:31.492194
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 
 # revision identifiers, used by Alembic.
@@ -51,7 +52,7 @@ def upgrade():
     sa.Column('state', sa.String(length=100), nullable=True),
     sa.Column('issuing_authority', sa.String(length=100), nullable=True),
     sa.Column('applicable_information', sa.String(length=100), nullable=True),
-    sa.Column('html', sa.Text(), nullable=True),
+    sa.Column('html', LONGTEXT, nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('anle_section',
