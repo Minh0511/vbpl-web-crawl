@@ -29,14 +29,15 @@ find_id_regex = '(?<=ItemID=)\\d+'
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
     _default_row_per_page = 10
-    _find_big_part_regex = '>((Phần)|(Phần thứ))'
-    _find_section_regex = '>((Điều)|(Điều thứ))'
+    _find_big_part_regex = '^((Phần)|(Phần thứ))'
+    _find_section_regex = '^((Điều)|(Điều thứ))'
     _find_chapter_regex = '^Chương [IVX]+'
     _find_part_regex = '^Mục [IVX]+'
     _find_part_regex_2 = '^Mu.c [IVX]+'
     _find_mini_part_regex = '^Tiểu mục [IVX]+'
     _empty_related_doc_msg = 'Nội dung đang cập nhật'
     _concetti_base_url = setting.CONCETTI_BASE_URL
+    _tvpl_base_url = setting.TVPL_BASE_URL
 
     @classmethod
     def get_headers(cls) -> Dict:
@@ -150,9 +151,13 @@ class VbplService:
                         await cls.crawl_vbpl_hopnhat_info(new_vbpl)
                         await cls.search_concetti(new_vbpl)
                         await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
+                        vbpl_fulltext = await cls.additional_html_crawl(new_vbpl)
 
                         with LocalSession.begin() as session:
                             session.add(new_vbpl)
+                            if vbpl_fulltext is not None:
+                                for fulltext_record in vbpl_fulltext:
+                                    session.add(fulltext_record)
 
                     # update progress
                     progress += 1
@@ -172,7 +177,7 @@ class VbplService:
         line_content = get_html_node_text(line)
         check = False
 
-        if re.search(cls._find_big_part_regex, str(line)):
+        if re.search(cls._find_big_part_regex, line_content):
             current_big_part_number_search = re.search('(?<=Phần thứ ).+', line_content)
             fulltext_obj.current_big_part_number = line_content[current_big_part_number_search.span()[0]:]
             next_node = line.find_next_sibling('p')
@@ -207,6 +212,71 @@ class VbplService:
         return fulltext_obj, check
 
     @classmethod
+    def process_html_full_text(cls, vbpl: Vbpl, lines):
+        vbpl_fulltext_obj = VbplFullTextField()
+        results = []
+
+        for line in lines:
+            line_content = get_html_node_text(line)
+            if re.search(cls._find_section_regex, line_content):
+                break
+
+            vbpl_fulltext_obj, check = cls.update_vbpl_phapquy_fulltext(line, vbpl_fulltext_obj)
+            if check:
+                continue
+
+        for line in lines:
+            line_content = get_html_node_text(line)
+
+            if re.search(cls._find_section_regex, line_content):
+                section_number_search = re.search('\\b\\d+', line_content)
+                section_number = int(section_number_search.group())
+
+                section_name = line_content[section_number_search.span()[1]:]
+                section_name_refined = None
+                section_name_search = re.search('\\b\\w', section_name)
+                if section_name_search:
+                    section_name_refined = section_name[section_name_search.span()[0]:]
+
+                current_fulltext_config = copy.deepcopy(vbpl_fulltext_obj)
+                content = []
+
+                next_node = line
+                while True:
+                    next_node = next_node.find_next_sibling('p')
+
+                    if next_node is None:
+                        break
+
+                    vbpl_fulltext_obj, check = cls.update_vbpl_phapquy_fulltext(next_node, vbpl_fulltext_obj)
+                    if check:
+                        next_node = next_node.find_next_sibling('p')
+                        continue
+
+                    if re.search(cls._find_section_regex, str(next_node)) or re.search('_{2,}', str(next_node)):
+                        section_content = '\n'.join(content)
+
+                        new_fulltext_section = VbplToanVan(
+                            vbpl_id=vbpl.id,
+                            section_number=section_number,
+                            section_name=section_name_refined,
+                            section_content=section_content,
+                            chapter_name=current_fulltext_config.current_chapter_name,
+                            chapter_number=current_fulltext_config.current_chapter_number,
+                            mini_part_name=current_fulltext_config.current_mini_part_name,
+                            mini_part_number=current_fulltext_config.current_mini_part_number,
+                            part_name=current_fulltext_config.current_part_name,
+                            part_number=current_fulltext_config.current_part_number,
+                            big_part_name=current_fulltext_config.current_big_part_name,
+                            big_part_number=current_fulltext_config.current_big_part_number
+                        )
+                        results.append(new_fulltext_section)
+                        break
+
+                    content.append(get_html_node_text(next_node))
+        return results
+
+    @classmethod
     async def crawl_vbpl_phapquy_fulltext(cls, vbpl: Vbpl):
         aspx_url = f'/TW/Pages/vbpq-{VbplTab.FULL_TEXT.value}.aspx'
         query_params = {
@@ -225,70 +295,15 @@ class VbplService:
             fulltext = soup.find('div', {"class": "toanvancontent"})
 
             if fulltext is None:
-                return None
+                return await cls.additional_html_crawl(vbpl)
 
             vbpl.html = str(fulltext)
 
             lines = fulltext.find_all('p')
-            vbpl_fulltext_obj = VbplFullTextField()
+            if len(lines) == 0:
+                return await cls.additional_html_crawl(vbpl)
+            results = cls.process_html_full_text(vbpl, lines)
 
-            for line in lines:
-                if re.search(cls._find_section_regex, str(line)):
-                    break
-
-                vbpl_fulltext_obj, check = cls.update_vbpl_phapquy_fulltext(line, vbpl_fulltext_obj)
-                if check:
-                    continue
-
-            for line in lines:
-                if re.search(cls._find_section_regex, str(line)):
-
-                    line_content = get_html_node_text(line)
-                    section_number_search = re.search('\\b\\d+', line_content)
-                    section_number = int(section_number_search.group())
-
-                    section_name = line_content[section_number_search.span()[1]:]
-                    section_name_refined = None
-                    section_name_search = re.search('\\b\\w', section_name)
-                    if section_name_search:
-                        section_name_refined = section_name[section_name_search.span()[0]:]
-
-                    current_fulltext_config = copy.deepcopy(vbpl_fulltext_obj)
-                    content = []
-
-                    next_node = line
-                    while True:
-                        next_node = next_node.find_next_sibling('p')
-
-                        if next_node is None:
-                            break
-
-                        vbpl_fulltext_obj, check = cls.update_vbpl_phapquy_fulltext(next_node, vbpl_fulltext_obj)
-                        if check:
-                            next_node = next_node.find_next_sibling('p')
-                            continue
-
-                        if re.search(cls._find_section_regex, str(next_node)) or re.search('_{2,}', str(next_node)):
-                            section_content = '\n'.join(content)
-
-                            new_fulltext_section = VbplToanVan(
-                                vbpl_id=vbpl.id,
-                                section_number=section_number,
-                                section_name=section_name_refined,
-                                section_content=section_content,
-                                chapter_name=current_fulltext_config.current_chapter_name,
-                                chapter_number=current_fulltext_config.current_chapter_number,
-                                mini_part_name=current_fulltext_config.current_mini_part_name,
-                                mini_part_number=current_fulltext_config.current_mini_part_number,
-                                part_name=current_fulltext_config.current_part_name,
-                                part_number=current_fulltext_config.current_part_number,
-                                big_part_name=current_fulltext_config.current_big_part_name,
-                                big_part_number=current_fulltext_config.current_big_part_number
-                            )
-                            results.append(new_fulltext_section)
-                            break
-
-                        content.append(get_html_node_text(next_node))
         return results
 
     @classmethod
@@ -705,3 +720,70 @@ class VbplService:
 
         if vbpl.sector is None:
             vbpl.sector = 'Lĩnh vực khác'
+
+    @classmethod
+    async def additional_html_crawl(cls, vbpl: Vbpl):
+        search_url = '/page/tim-van-ban.aspx'
+        key_type = ['title', 'sub_title', 'serial_number']
+        threshold = 0.8
+        found = False
+        results = []
+
+        for key in key_type:
+            if found:
+                break
+
+            if getattr(vbpl, key) is None:
+                continue
+
+            search_key = getattr(vbpl, key)
+            query_params = {
+                'keyword': search_key,
+                'sort': 1,
+            }
+            try:
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    async with session.request('GET',
+                                               cls._tvpl_base_url + search_url,
+                                               query_params=query_params,
+                                               headers=cls.get_headers()
+                                               ) as resp:
+                        await resp.text()
+            except Exception as e:
+                _logger.exception(e)
+                raise CommonException(500, 'Search tvpl')
+            if resp.status == HTTPStatus.OK:
+                soup = BeautifulSoup(await resp.text(), 'lxml')
+                search_results = soup.find_all('p', {'class': 'nqTitle'})
+
+                for result in search_results:
+                    search_text = get_html_node_text(result)
+                    if Levenshtein.ratio(search_text, search_key) >= threshold:
+                        found = True
+                        result_url = result.find('a').get('href')
+                        try:
+                            async with aiohttp.ClientSession(trust_env=True) as session:
+                                async with session.request('GET',
+                                                           result_url,
+                                                           headers=cls.get_headers()
+                                                           ) as full_text_resp:
+                                    await full_text_resp.text()
+                        except Exception as e:
+                            _logger.exception(e)
+                            raise CommonException(500, 'Get tvpl html')
+                        if full_text_resp.status == HTTPStatus.OK:
+                            full_text_soup = BeautifulSoup(await full_text_resp.text(), 'lxml')
+                            full_text = full_text_soup.find('div', {'class': 'cldivContentDocVn'})
+
+                            if full_text is None:
+                                return None
+
+                            vbpl.html = str(full_text)
+
+                            lines = full_text.find_all('p')
+                            results = cls.process_html_full_text(vbpl, lines)
+        return results
+
+    @classmethod
+    async def additional_pdf_crawl(cls, vbpl):
+        pass
