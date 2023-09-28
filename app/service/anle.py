@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -33,21 +34,27 @@ class AnleService:
     async def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=30):
         url = cls._api_base_url + url_path
         headers = cls.get_headers()
-        try:
-            async with aiohttp.ClientSession(trust_env=True) as session:
-                async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
-                                           headers=headers, verify_ssl=False) as resp:
-                    await resp.text()
-            if resp.status != HTTPStatus.OK:
-                _logger.warning(
-                    "Calling Anle URL: %s, request_param %s, request_payload %s, http_code: %s, response: %s" %
-                    (url, str(query_params), str(json_data), str(resp.status), resp.text))
-            return resp
-        except Exception as e:
-            _logger.warning(f"Calling Anle URL: {url},"
-                            f" request_params {str(query_params)}, request_body {str(json_data)},"
-                            f" error {str(e)}")
-            raise e
+        max_retries = 3
+        for retry in range(max_retries):
+            try:
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    async with session.request(method, url, params=query_params, json=json_data, timeout=timeout,
+                                               headers=headers, verify_ssl=False) as resp:
+                        await resp.text()
+                if resp.status != HTTPStatus.OK:
+                    _logger.warning(
+                        "Calling Anle URL: %s, request_param %s, request_payload %s, http_code: %s, response: %s" %
+                        (url, str(query_params), str(json_data), str(resp.status), resp.text))
+                return resp
+            except Exception as e:
+                _logger.warning(f"Calling Anle URL: {url},"
+                                f" request_params {str(query_params)}, request_body {str(json_data)},"
+                                f" error {str(e)}")
+                if retry < max_retries - 1:
+                    _logger.warning(f"Retrying... (Attempt {retry + 1}/{max_retries})")
+                    await asyncio.sleep(2 ** retry)  # Sleep for an increasing amount of time between retries
+                else:
+                    raise e
 
     @classmethod
     async def crawl_anle_info(cls, anle: Anle):
@@ -245,3 +252,11 @@ class AnleService:
                     content=anle_content,
                 )
                 session.add(new_anle_section)
+
+    @classmethod
+    async def fetch_anle_by_id(cls, anle_id):
+        with LocalSession.begin() as session:
+            target_anle = session.query(Anle).filter(Anle.doc_id == anle_id).order_by(Anle.updated_at.desc()).first()
+
+        print(target_anle)
+        return target_anle

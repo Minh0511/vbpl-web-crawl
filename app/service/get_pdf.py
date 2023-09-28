@@ -17,6 +17,7 @@ def get_anle_file_name(response):
 
 
 def get_document(document_url, is_vbpl, file_id=None, is_pdf_file=None):
+    document_url = clean_extension(document_url)
     try:
         pdf_folder_path = 'documents/pdf/anle_pdf'
         doc_folder_path = 'documents/doc/anle_doc'
@@ -85,3 +86,11 @@ def get_file_id(document_url, is_vbpl):
     else:
         file_id = "noId"
     return file_id
+
+
+def clean_extension(filename):
+    pattern = r'\.{2}(docx?|pdf)$'
+
+    cleaned_filename = re.sub(pattern, r'.\1', filename)
+
+    return cleaned_filename
