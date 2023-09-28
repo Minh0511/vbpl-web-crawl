@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from app.helper.constant import AnleSectionConst
 from app.helper.custom_exception import CommonException
 from app.helper.db import LocalSession
+from app.helper.logger import setup_logger
 from app.helper.utility import get_html_node_text
 from app.model import Anle
 from app.model import AnleSection
@@ -20,10 +21,7 @@ from app.service.get_pdf import get_document, is_pdf
 from setting import setting
 import aspose.words as aw
 
-logging.basicConfig(filename="log/anle.log",
-                    format='%(asctime)s %(message)s',
-                    filemode='w')
-_logger = logging.getLogger(__name__)
+_logger = setup_logger('anle_logger', 'log/anle.log')
 
 
 class AnleService:

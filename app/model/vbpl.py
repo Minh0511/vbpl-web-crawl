@@ -75,7 +75,7 @@ class VbplToanVan(Base):
     vbpl_id = Column(Integer, ForeignKey('vbpl.id'), primary_key=True, nullable=False)
     section_number = Column(Integer, primary_key=True, nullable=False)
     section_name = Column(String(400), nullable=True)
-    section_content = Column(Text, nullable=True)
+    section_content = Column(LONGTEXT, nullable=True)
     chapter_number = Column(String(25), nullable=True)
     chapter_name = Column(String(200), nullable=True)
     big_part_number = Column(String(25), nullable=True)

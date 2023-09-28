@@ -1,6 +1,7 @@
 import asyncio
 
 from app.helper.enum import VbplType
+from app.model import Vbpl
 from app.service.anle import AnleService
 
 from app.service.vbpl import VbplService

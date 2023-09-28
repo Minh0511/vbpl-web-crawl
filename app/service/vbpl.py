@@ -15,7 +15,8 @@ import concurrent.futures
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
-from app.helper.exception_handler import common_exception_handler
+from time import sleep
+from app.helper.logger import setup_logger
 from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap
 from app.service.get_pdf import get_document
 from setting import setting
@@ -26,16 +27,14 @@ from urllib.parse import quote
 import Levenshtein
 from bs4 import BeautifulSoup
 
-logging.basicConfig(filename="log/vbpl.log",
-                    format='%(asctime)s %(message)s',
-                    filemode='w')
-_logger = logging.getLogger(__name__)
+_logger = setup_logger('vbpl_logger', 'log/vbpl.log')
 find_id_regex = '(?<=ItemID=)\\d+'
 
 
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
-    _default_row_per_page = 120
+    _default_row_per_page = 130
+    _max_threads = 8
     _find_big_part_regex = '^((Phần)|(Phần thứ)) (nhất|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)$'
     _find_section_regex = '^((Điều)|(Điều thứ)) \\d+'
     _find_chapter_regex = '^Chương [IVX]+'
@@ -95,15 +94,17 @@ class VbplService:
         total_pages = 1000
         full_id_list = []
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=cls._max_threads) as executor:
             info_and_fulltext_coroutines = [cls.crawl_vbpl_in_one_page(page, full_id_list, vbpl_type) for page in
                                             range(1, total_pages + 1)]
             executor.map(asyncio.run, info_and_fulltext_coroutines)
 
+        with concurrent.futures.ThreadPoolExecutor(max_workers=cls._max_threads) as executor:
             related_doc_coroutines = [cls.crawl_vbpl_related_doc(doc_id) for doc_id in full_id_list]
-            doc_map_coroutines = [cls.crawl_vbpl_doc_map(doc_id, vbpl_type) for doc_id in full_id_list]
-
             executor.map(asyncio.run, related_doc_coroutines)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=cls._max_threads) as executor:
+            doc_map_coroutines = [cls.crawl_vbpl_doc_map(doc_id, vbpl_type) for doc_id in full_id_list]
             executor.map(asyncio.run, doc_map_coroutines)
 
         # for i in range(1, total_pages):
@@ -144,9 +145,8 @@ class VbplService:
                     full_id_list.append(doc_id)
 
                     with LocalSession.begin() as session:
-                        statement = session.query(Vbpl).filter(Vbpl.id == doc_id)
-                        check_vbpl = session.execute(statement).all()
-                        if len(check_vbpl) != 0:
+                        check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
+                        if check_vbpl is not None:
                             progress += 1
                             _logger.info(f'Finished crawling vbpl {doc_id}')
                             _logger.info(f"Page {page} progress: {progress}/{max_progress}")
@@ -165,8 +165,12 @@ class VbplService:
                         with LocalSession.begin() as session:
                             session.add(new_vbpl)
                             if vbpl_fulltext is not None:
-                                for fulltext_record in vbpl_fulltext:
-                                    session.add(fulltext_record)
+                                for fulltext_section in vbpl_fulltext:
+                                    check_fulltext = session.query(VbplToanVan).filter(
+                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                        VbplToanVan.section_number == fulltext_section.section_number).first()
+                                    if check_fulltext is None:
+                                        session.add(fulltext_section)
 
                     elif vbpl_type == VbplType.HOP_NHAT:
                         await cls.crawl_vbpl_hopnhat_info(new_vbpl)
@@ -177,13 +181,18 @@ class VbplService:
                         with LocalSession.begin() as session:
                             session.add(new_vbpl)
                             if vbpl_fulltext is not None:
-                                for fulltext_record in vbpl_fulltext:
-                                    session.add(fulltext_record)
+                                for fulltext_section in vbpl_fulltext:
+                                    check_fulltext = session.query(VbplToanVan).filter(
+                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                        VbplToanVan.section_number == fulltext_section.section_number).first()
+                                    if check_fulltext is None:
+                                        session.add(fulltext_section)
 
                     # update progress
                     progress += 1
                     _logger.info(f'Finished crawling vbpl {doc_id}')
                     _logger.info(f"Page {page} progress: {progress}/{max_progress}")
+            sleep(3)
         except Exception as e:
             _logger.exception(f'Crawl all doc in page {page} {e}')
             raise CommonException(500, 'Crawl all doc')
@@ -256,6 +265,9 @@ class VbplService:
 
                 current_fulltext_config = copy.deepcopy(vbpl_fulltext_obj)
                 content = []
+                if section_name_refined is not None and len(section_name_refined) >= 400:
+                    content.append(section_name_refined)
+                    section_name_refined = None
 
                 next_node = line
                 while True:
@@ -314,6 +326,8 @@ class VbplService:
                 vbpl.html = str(fulltext)
 
                 lines = fulltext.find_all('p')
+                if len(lines) == 0:
+                    lines = fulltext.find_all('div')
                 if len(lines) == 0:
                     return await cls.additional_html_crawl(vbpl)
                 results = cls.process_html_full_text(vbpl, lines)
@@ -547,7 +561,8 @@ class VbplService:
                 soup = BeautifulSoup(await resp.text(), 'lxml')
 
                 related_doc_node = soup.find('div', {'class': 'vbLienQuan'})
-                if related_doc_node is None or re.search(cls._empty_related_doc_msg, get_html_node_text(related_doc_node)):
+                if related_doc_node is None or re.search(cls._empty_related_doc_msg,
+                                                         get_html_node_text(related_doc_node)):
                     return
 
                 doc_type_node = related_doc_node.find_all('td', {'class': 'label'})
@@ -566,7 +581,12 @@ class VbplService:
                             doc_type=doc_type
                         )
                         with LocalSession.begin() as session:
-                            session.add(new_vbpl_related_doc)
+                            check_related_doc = session.query(VbplRelatedDocument).filter(
+                                VbplRelatedDocument.source_id == new_vbpl_related_doc.source_id,
+                                VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).first()
+                            if check_related_doc is None:
+                                session.add(new_vbpl_related_doc)
+            sleep(1)
         except Exception as e:
             _logger.exception(f'Crawl vbpl related doc {vbpl_id} {e}')
             raise CommonException(500, 'Crawl vbpl van ban lien quan')
@@ -620,7 +640,11 @@ class VbplService:
                                 doc_map_type=doc_map_title
                             )
                             with LocalSession.begin() as session:
-                                session.add(new_vbpl_doc_map)
+                                check_doc_map = session.query(VbplDocMap).filter(
+                                    VbplDocMap.source_id == new_vbpl_doc_map.source_id,
+                                    VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).first()
+                                if check_doc_map is None:
+                                    session.add(new_vbpl_doc_map)
 
                 elif vbpl_type == VbplType.HOP_NHAT:
                     doc_map_nodes = soup.find_all('div', {'class': 'w'})
@@ -640,6 +664,7 @@ class VbplService:
                         )
                         with LocalSession.begin() as session:
                             session.add(new_vbpl_doc_map)
+            sleep(1)
         except Exception as e:
             _logger.exception(f'Crawl vbpl doc map {vbpl_id} {e}')
             raise CommonException(500, 'Crawl vbpl luoc do')
@@ -826,6 +851,8 @@ class VbplService:
                                 vbpl.html = str(full_text)
 
                                 lines = full_text.find_all('p')
+                                if len(lines) == 0:
+                                    lines = full_text.find_all('div')
                                 results = cls.process_html_full_text(vbpl, lines)
                         except Exception as e:
                             _logger.exception(f'Get tvpl html {result_url} {e}')
@@ -856,9 +883,9 @@ class VbplService:
     @classmethod
     async def fetch_vbpl_by_id(cls, vbpl_id):
         with LocalSession.begin() as session:
-            target_vbpl = session.query(Vbpl, VbplDocMap, VbplToanVan).\
-                join(VbplDocMap, Vbpl.id == VbplDocMap.source_id).\
-                join(VbplToanVan, VbplDocMap.source_id == VbplToanVan.vbpl_id).\
+            target_vbpl = session.query(Vbpl, VbplDocMap, VbplToanVan). \
+                join(VbplDocMap, Vbpl.id == VbplDocMap.source_id). \
+                join(VbplToanVan, VbplDocMap.source_id == VbplToanVan.vbpl_id). \
                 where(Vbpl.id == vbpl_id).order_by(Vbpl.updated_at.desc())
 
             if target_vbpl.effective_date < datetime.now() and target_vbpl.state == "Chưa có hiệu lực":

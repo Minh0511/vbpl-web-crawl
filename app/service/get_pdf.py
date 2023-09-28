@@ -6,10 +6,9 @@ import requests
 import requests.packages
 import urllib3.exceptions
 
-logging.basicConfig(filename="log/pdf.log",
-                    format='%(asctime)s %(message)s',
-                    filemode='w')
-_logger = logging.getLogger(__name__)
+from app.helper.logger import setup_logger
+
+_logger = setup_logger('pdf_logger', 'log/pdf.log')
 
 
 def get_anle_file_name(response):
