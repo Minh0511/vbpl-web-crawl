@@ -35,7 +35,7 @@ find_id_regex = '(?<=ItemID=)\\d+'
 
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
-    _default_row_per_page = 1
+    _default_row_per_page = 120
     _find_big_part_regex = '^((Phần)|(Phần thứ)) (nhất|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)$'
     _find_section_regex = '^((Điều)|(Điều thứ)) \\d+'
     _find_chapter_regex = '^Chương [IVX]+'
@@ -92,7 +92,7 @@ class VbplService:
     @classmethod
     async def crawl_all_vbpl(cls, vbpl_type: VbplType):
         total_doc = await cls.get_total_doc(vbpl_type)
-        total_pages = 10
+        total_pages = 1000
         full_id_list = []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -103,8 +103,8 @@ class VbplService:
             related_doc_coroutines = [cls.crawl_vbpl_related_doc(doc_id) for doc_id in full_id_list]
             doc_map_coroutines = [cls.crawl_vbpl_doc_map(doc_id, vbpl_type) for doc_id in full_id_list]
 
-            # executor.map(asyncio.run, related_doc_coroutines)
-            # executor.map(asyncio.run, doc_map_coroutines)
+            executor.map(asyncio.run, related_doc_coroutines)
+            executor.map(asyncio.run, doc_map_coroutines)
 
         # for i in range(1, total_pages):
         #     await cls.crawl_vbpl_in_one_page(i, full_id_list, vbpl_type)
@@ -431,8 +431,11 @@ class VbplService:
                 if len(file_urls) > 0:
                     local_links = []
                     for url in file_urls:
-                        local_links.append(get_document(url, True))
-                    vbpl.file_link = ' '.join(local_links)
+                        doc_link = get_document(url, True)
+                        if doc_link is not None:
+                            local_links.append(get_document(url, True))
+                    if len(local_links) > 0:
+                        vbpl.file_link = ' '.join(local_links)
                     vbpl.org_pdf_link = ' '.join(file_urls)
         except Exception as e:
             _logger.exception(f'Crawl vbpl hopnhat info {vbpl.id} {e}')
@@ -522,8 +525,11 @@ class VbplService:
                 if len(file_urls) > 0:
                     local_links = []
                     for url in file_urls:
-                        local_links.append(get_document(url, True))
-                    vbpl.file_link = ' '.join(local_links)
+                        doc_link = get_document(url, True)
+                        if doc_link is not None:
+                            local_links.append(get_document(url, True))
+                    if len(local_links) > 0:
+                        vbpl.file_link = ' '.join(local_links)
                     vbpl.org_pdf_link = ' '.join(file_urls)
         except Exception as e:
             _logger.exception(f'Crawl vbpl phapquy info {vbpl.id} {e}')

@@ -64,6 +64,8 @@ def get_document(document_url, is_vbpl, file_id=None, is_pdf_file=None):
         if response.status_code == 200:
             with open(file_path, 'wb') as pdf_file:
                 pdf_file.write(response.content)
+        elif response.status_code == 404:
+            return None
         else:
             raise Exception(f"Failed to download PDF from url {response.status_code}")
 
