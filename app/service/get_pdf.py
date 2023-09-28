@@ -25,10 +25,7 @@ def get_document(document_url, is_vbpl, file_id=None, is_pdf_file=None):
             doc_folder_path = 'documents/doc/vbpl_doc'
 
         os.makedirs(pdf_folder_path, exist_ok=True)
-        os.makedirs(doc_folder_path, exist_ok=True)\
-
-        if file_id is None:
-            file_id = get_file_id(document_url, is_vbpl)
+        os.makedirs(doc_folder_path, exist_ok=True)
 
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         response = requests.get(document_url, verify=False)
@@ -44,6 +41,7 @@ def get_document(document_url, is_vbpl, file_id=None, is_pdf_file=None):
         decoded_file_name = urllib.parse.unquote(document_file_name)
 
         if file_id is None:
+            file_id = get_file_id(document_url, is_vbpl)
             file_name = f"({file_id})-{decoded_file_name.replace(' ', '_').replace('%', '_')}"
         else:
             if is_pdf_file:
