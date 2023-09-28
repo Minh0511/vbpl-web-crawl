@@ -9,7 +9,7 @@ vbpl_service = VbplService()
 anle_service = AnleService()
 
 # asyncio.run(vbpl_service.crawl_all_vbpl(VbplType.PHAP_QUY))
-asyncio.run(vbpl_service.crawl_all_vbpl(VbplType.PHAP_QUY))
+asyncio.run(vbpl_service.crawl_all_vbpl(VbplType.HOP_NHAT))
 
 # test_vbpl = Vbpl(
 #     id=96172,

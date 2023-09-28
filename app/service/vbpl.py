@@ -26,7 +26,7 @@ from urllib.parse import quote
 import Levenshtein
 from bs4 import BeautifulSoup
 
-logging.basicConfig(filename="std.log",
+logging.basicConfig(filename="log/vbpl.log",
                     format='%(asctime)s %(message)s',
                     filemode='w')
 _logger = logging.getLogger(__name__)

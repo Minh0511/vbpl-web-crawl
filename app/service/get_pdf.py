@@ -1,9 +1,15 @@
+import logging
 import os
 import re
 import urllib.parse
 import requests
 import requests.packages
 import urllib3.exceptions
+
+logging.basicConfig(filename="log/pdf.log",
+                    format='%(asctime)s %(message)s',
+                    filemode='w')
+_logger = logging.getLogger(__name__)
 
 
 def get_anle_file_name(response):
@@ -59,13 +65,12 @@ def get_document(document_url, is_vbpl, file_id=None, is_pdf_file=None):
             with open(file_path, 'wb') as pdf_file:
                 pdf_file.write(response.content)
         else:
-            raise Exception("Failed to download PDF from url")
+            raise Exception(f"Failed to download PDF from url {response.status_code}")
 
         return file_path
 
     except Exception as e:
-        print(f"Error processing URL: {document_url}")
-        print(f"Error message: {str(e)}")
+        _logger.exception(f'Error processing URL: {document_url} {e}')
 
 
 def is_pdf(file_name):
