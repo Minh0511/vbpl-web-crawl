@@ -6,11 +6,13 @@ import copy
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
-from sqlalchemy import select, case
+from sqlalchemy import select, case, join
 
 import aiohttp
 import yarl
 import concurrent.futures
+
+from sqlalchemy.orm import load_only, aliased
 
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
@@ -883,68 +885,69 @@ class VbplService:
     @classmethod
     async def fetch_vbpl_by_id(cls, vbpl_id):
         with LocalSession.begin() as session:
-            now = datetime.now()
+            vbpl_info = session.query(
+                Vbpl.id,
+                Vbpl.file_link,
+                Vbpl.title,
+                Vbpl.doc_type,
+                Vbpl.serial_number,
+                Vbpl.issuance_date,
+                Vbpl.effective_date,
+                Vbpl.expiration_date,
+                Vbpl.gazette_date,
+                Vbpl.state,
+                Vbpl.issuing_authority,
+                Vbpl.applicable_information,
+                Vbpl.org_pdf_link,
+                Vbpl.sub_title,
+                Vbpl.sector
+            ).filter(Vbpl.id == vbpl_id).order_by(Vbpl.updated_at.desc()).first()
 
-            # Construct the query to fetch the data
-            query_result = (
-                session.query(
-                    Vbpl,
-                    VbplDocMap.doc_map_id,
-                    VbplDocMap.source_id,
-                    VbplRelatedDocument.related_id,
-                    VbplRelatedDocument.source_id,
-                    VbplToanVan.section_number,
-                    VbplToanVan.section_name,
-                    VbplToanVan.section_content,
-                    VbplToanVan.chapter_number,
-                    VbplToanVan.chapter_name,
-                    VbplToanVan.part_number,
-                    VbplToanVan.part_name,
-                    VbplToanVan.mini_part_number,
-                    VbplToanVan.mini_part_name,
-                    VbplToanVan.big_part_number,
-                    VbplToanVan.big_part_name,
-                    VbplToanVan.vbpl_id
-                )
-                .filter(Vbpl.id == vbpl_id)
-                .outerjoin(VbplDocMap, VbplDocMap.source_id == Vbpl.id)
-                .outerjoin(VbplRelatedDocument, VbplRelatedDocument.source_id == Vbpl.id)
-                .outerjoin(VbplToanVan, VbplToanVan.vbpl_id == Vbpl.id)
-                .filter(
-                    VbplToanVan.section_content != None,  # Exclude null section_content
-                    Vbpl.html == None,  # Exclude HTML
-                    VbplToanVan.section_content != 'full text',  # Exclude "full text"
-                    Vbpl.effective_date <= now,
-                    Vbpl.doc_type != "Chưa có hiệu lực"
-                )
-                .all()
+            vbpl_related_document_info = session.query(VbplRelatedDocument.related_id, Vbpl.title, Vbpl.sub_title). \
+                join(Vbpl, VbplRelatedDocument.related_id == Vbpl.id). \
+                filter(VbplRelatedDocument.source_id == vbpl_id). \
+                all()
+
+            vbpl_doc_map_info = session.query(VbplDocMap.doc_map_id, Vbpl.title, Vbpl.sub_title). \
+                join(Vbpl, VbplDocMap.doc_map_id == Vbpl.id). \
+                filter(VbplDocMap.source_id == vbpl_id). \
+                all()
+
+        formatted_vbpl_info = (
+            f"ID văn bản: {vbpl_info.id},\n"
+            f"Đường dẫn lưu file: {vbpl_info.file_link},\n"
+            f"Tiêu đề văn bản: {vbpl_info.title},\n"
+            f"Loại văn bản: {vbpl_info.doc_type},\n"
+            f"Số ký hiệu: {vbpl_info.serial_number},\n"
+            f"Ngày ban hành: {vbpl_info.issuance_date},\n"
+            f"Ngày có hiệu lực: {vbpl_info.effective_date},\n"
+            f"Ngày hết hiệu lực: {vbpl_info.expiration_date},\n"
+            f"Ngày đăng công báo: {vbpl_info.gazette_date},\n"
+            f"Trạng thái: {vbpl_info.state},\n"
+            f"Cơ quan ban hành/ Chức danh / Người ký: {vbpl_info.issuing_authority},\n"
+            f"Thông tin áp dụng: {vbpl_info.applicable_information},\n"
+            f"Đường dẫn đến văn bản gốc: {vbpl_info.org_pdf_link},\n"
+            f"Tiêu đề phụ: {vbpl_info.sub_title},\n"
+            f"Lĩnh vực: {vbpl_info.sector},\n"
+        )
+        print(formatted_vbpl_info)
+
+        print("Thông tin các văn bản liên quan: ")
+        for related_doc in vbpl_related_document_info:
+            formatted_related_doc = (
+                f"ID văn bản liên quan: {related_doc.related_id},\n"
+                f"Tiêu đề văn bản liên quan: {related_doc.title},\n"
+                f"Tiêu đề phụ văn bản liên quan: {related_doc.sub_title},\n"
             )
+            print(formatted_related_doc)
 
-            # Process the query result
-            for vbpl, doc_map_id, source_id, related_id, related_source_id, section_number, section_name, section_content, chapter_number, chapter_name, part_number, part_name, mini_part_number, mini_part_name, big_part_number, big_part_name, vbpl_id in query_result:
-                # Create a single object to hold all the information
-                vbpl_info = {
-                    "vbpl_id": vbpl.id,
-                    "title": vbpl.title,
-                    "doc_type": vbpl.doc_type,
-                    "doc_map_id": doc_map_id,
-                    "source_id": source_id,
-                    "related_id": related_id,
-                    "related_source_id": related_source_id,
-                    "section_number": section_number,
-                    "section_name": section_name,
-                    "section_content": section_content,
-                    "chapter_number": chapter_number,
-                    "chapter_name": chapter_name,
-                    "part_number": part_number,
-                    "part_name": part_name,
-                    "mini_part_number": mini_part_number,
-                    "mini_part_name": mini_part_name,
-                    "big_part_number": big_part_number,
-                    "big_part_name": big_part_name,
-                }
+        print("Thông tin các lược đồ: ")
+        for doc in vbpl_doc_map_info:
+            formatted_related_doc = (
+                f"ID lược đồ: {doc.doc_map_id},\n"
+                f"Tiêu đề lược đồ: {doc.title},\n"
+                f"Tiêu đề phụ lược đồ: {doc.sub_title},\n"
+            )
+            print(formatted_related_doc)
 
-                print(vbpl_info)
-                # Handle the effective_date update
-                if vbpl.effective_date <= now and vbpl.doc_type == "Chưa có hiệu lực":
-                    vbpl_info["doc_type"] = "Có hiệu lực"
+        return vbpl_info, vbpl_related_document_info, vbpl_doc_map_info
