@@ -6,7 +6,7 @@ import copy
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
-from sqlalchemy import update
+from sqlalchemy import select, case
 
 import aiohttp
 import yarl
@@ -883,18 +883,68 @@ class VbplService:
     @classmethod
     async def fetch_vbpl_by_id(cls, vbpl_id):
         with LocalSession.begin() as session:
-            target_vbpl = session.query(Vbpl, VbplDocMap, VbplToanVan). \
-                join(VbplDocMap, Vbpl.id == VbplDocMap.source_id). \
-                join(VbplToanVan, VbplDocMap.source_id == VbplToanVan.vbpl_id). \
-                where(Vbpl.id == vbpl_id).order_by(Vbpl.updated_at.desc())
+            now = datetime.now()
 
-            if target_vbpl.effective_date < datetime.now() and target_vbpl.state == "Chưa có hiệu lực":
-                target_vbpl.state = "Có hiệu lực"
-                values_to_update = {
-                    Vbpl.state: "Có hiệu lực"
+            # Construct the query to fetch the data
+            query_result = (
+                session.query(
+                    Vbpl,
+                    VbplDocMap.doc_map_id,
+                    VbplDocMap.source_id,
+                    VbplRelatedDocument.related_id,
+                    VbplRelatedDocument.source_id,
+                    VbplToanVan.section_number,
+                    VbplToanVan.section_name,
+                    VbplToanVan.section_content,
+                    VbplToanVan.chapter_number,
+                    VbplToanVan.chapter_name,
+                    VbplToanVan.part_number,
+                    VbplToanVan.part_name,
+                    VbplToanVan.mini_part_number,
+                    VbplToanVan.mini_part_name,
+                    VbplToanVan.big_part_number,
+                    VbplToanVan.big_part_name,
+                    VbplToanVan.vbpl_id
+                )
+                .filter(Vbpl.id == vbpl_id)
+                .outerjoin(VbplDocMap, VbplDocMap.source_id == Vbpl.id)
+                .outerjoin(VbplRelatedDocument, VbplRelatedDocument.source_id == Vbpl.id)
+                .outerjoin(VbplToanVan, VbplToanVan.vbpl_id == Vbpl.id)
+                .filter(
+                    VbplToanVan.section_content != None,  # Exclude null section_content
+                    Vbpl.html == None,  # Exclude HTML
+                    VbplToanVan.section_content != 'full text',  # Exclude "full text"
+                    Vbpl.effective_date <= now,
+                    Vbpl.doc_type != "Chưa có hiệu lực"
+                )
+                .all()
+            )
+
+            # Process the query result
+            for vbpl, doc_map_id, source_id, related_id, related_source_id, section_number, section_name, section_content, chapter_number, chapter_name, part_number, part_name, mini_part_number, mini_part_name, big_part_number, big_part_name, vbpl_id in query_result:
+                # Create a single object to hold all the information
+                vbpl_info = {
+                    "vbpl_id": vbpl.id,
+                    "title": vbpl.title,
+                    "doc_type": vbpl.doc_type,
+                    "doc_map_id": doc_map_id,
+                    "source_id": source_id,
+                    "related_id": related_id,
+                    "related_source_id": related_source_id,
+                    "section_number": section_number,
+                    "section_name": section_name,
+                    "section_content": section_content,
+                    "chapter_number": chapter_number,
+                    "chapter_name": chapter_name,
+                    "part_number": part_number,
+                    "part_name": part_name,
+                    "mini_part_number": mini_part_number,
+                    "mini_part_name": mini_part_name,
+                    "big_part_number": big_part_number,
+                    "big_part_name": big_part_name,
                 }
-                update_statement = update(Vbpl).where(Vbpl.id == vbpl_id).values(values_to_update)
-                session.execute(update_statement)
 
-        print(target_vbpl)
-        return target_vbpl
+                print(vbpl_info)
+                # Handle the effective_date update
+                if vbpl.effective_date <= now and vbpl.doc_type == "Chưa có hiệu lực":
+                    vbpl_info["doc_type"] = "Có hiệu lực"
