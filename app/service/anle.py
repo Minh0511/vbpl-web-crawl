@@ -258,5 +258,21 @@ class AnleService:
         with LocalSession.begin() as session:
             target_anle = session.query(Anle).filter(Anle.doc_id == anle_id).order_by(Anle.updated_at.desc()).first()
 
-        print(target_anle)
+        formatted_output = (
+            f"ID trong bảng ghi: {target_anle.id},\n"
+            f"ID án lệ: {target_anle.doc_id},\n"
+            f"Đường dẫn lưu file: {target_anle.file_link},\n"
+            f"Tên án lệ: {target_anle.title},\n"
+            f"Số án lệ: {target_anle.serial_number},\n"
+            f"Ngày thông qua: {target_anle.adoption_date},\n"
+            f"Ngày áp dụng: {target_anle.application_date},\n"
+            f"Ngày hết hiệu lực: {target_anle.expiration_date},\n"
+            f"Ngày công bố: {target_anle.publication_date},\n"
+            f"Trạng thái: {target_anle.state},\n"
+            f"Lĩnh vực: {target_anle.sector},\n"
+            f"Quyết định công bố: {target_anle.publication_decision},\n"
+            f"Đường dẫn đến link gốc: {target_anle.org_pdf_link},\n"
+        )
+
+        print(formatted_output)
         return target_anle
