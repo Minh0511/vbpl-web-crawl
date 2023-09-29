@@ -69,7 +69,6 @@ class AnleService:
             if resp.status == HTTPStatus.OK:
                 resp_text = await resp.text()
                 soup = BeautifulSoup(resp_text, 'lxml')
-                # print("Text", resp_text)
                 anle_info_node = soup.find('div', {'id': 'thuoctinh'})
                 table_headers = anle_info_node.find_all('th')
 
@@ -158,7 +157,7 @@ class AnleService:
                             check_anle = session.execute(statement).all()
                             if len(check_anle) != 0:
                                 progress += 1
-                                print(f"Progress: {progress}/{total_records}")
+                                _logger.info(f"Progress: {progress}/{total_records}")
                                 continue
 
                         new_anle = Anle(doc_id=anle_id)
@@ -166,7 +165,7 @@ class AnleService:
 
                         # update progress
                         progress += 1
-                        print(f"Progress: {progress}/{total_records}")
+                        _logger.info(f"Progress: {progress}/{total_records}")
 
                 if int(total_records) <= current_page * 10:
                     break
