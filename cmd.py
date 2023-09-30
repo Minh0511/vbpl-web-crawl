@@ -10,22 +10,20 @@ from app.service.vbpl import VbplService
 vbpl_service = VbplService()
 anle_service = AnleService()
 
+
 def crawl_all_vbpl_phap_quy():
-    # Implement your first crawling function here
     print("Đang cào dữ liệu vbpl - văn bản pháp quy")
     asyncio.run(vbpl_service.crawl_all_vbpl(VbplType.PHAP_QUY))
     print("Cào dữ liệu hoàn tất")
 
 
 def crawl_all_vbpl_hop_nhat():
-    # Implement your second crawling function here
     print("Đang cào dữ liệu vbpl - văn bản hợp nhất")
     asyncio.run(vbpl_service.crawl_all_vbpl(VbplType.HOP_NHAT))
     print("Cào dữ liệu hoàn tất")
 
 
 def craw_all_anle():
-    # Implement your third function that requires an ID parameter here
     print("Đang cào dữ liệu án lệ")
     asyncio.run(anle_service.crawl_all_anle())
     print("Cào dữ liệu hoàn tất")
@@ -87,7 +85,7 @@ def print_menu():
 
 
 def main():
-    print_menu()  # Print the menu initially
+    print_menu()
     try:
         while True:
             choice = input("Nhập lựa chọn: ")
@@ -114,7 +112,7 @@ def main():
                 anle_id = input("Nhập ID án lệ: ")
                 fetch_anle_by_id(anle_id)
             elif choice == "9" or choice == "--help":
-                print_menu()  # Display the menu again
+                print_menu()
             elif choice == "10":
                 print("Đang thoát chương trình.")
                 break
