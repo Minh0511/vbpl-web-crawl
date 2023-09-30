@@ -32,7 +32,7 @@ class AnleService:
         return {'Content-Type': 'application/json'}
 
     @classmethod
-    async def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=30):
+    async def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=90):
         url = cls._api_base_url + url_path
         headers = cls.get_headers()
         max_retries = 3
