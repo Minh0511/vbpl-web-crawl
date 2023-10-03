@@ -20,6 +20,7 @@ from app.helper.enum import VbplTab, VbplType
 from time import sleep
 from app.helper.logger import setup_logger
 from app.model import VbplToanVan, Vbpl, VbplRelatedDocument, VbplDocMap
+from app.model.vbpl import VbplSubPart
 from app.service.get_pdf import get_document
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text, convert_datetime_to_str, \
@@ -43,6 +44,8 @@ class VbplService:
     _find_part_regex = '^Mục [IVX]+'
     _find_part_regex_2 = '^Mu.c [IVX]+'
     _find_mini_part_regex = '^Tiểu mục [IVX]+'
+    _find_start_sub_part_regex = '^PHỤ LỤC$'
+    _find_sub_part_regex = '^Phụ(\\s)*(\\n)*lục [IVX]+'
     _empty_related_doc_msg = 'Nội dung đang cập nhật'
     _concetti_base_url = setting.CONCETTI_BASE_URL
     _tvpl_base_url = setting.TVPL_BASE_URL
@@ -239,8 +242,12 @@ class VbplService:
             if check:
                 continue
 
-        for line in lines:
+        for line_index, line in enumerate(lines):
             line_content = get_html_node_text(line)
+
+            if re.search(cls._find_start_sub_part_regex, line_content):
+                cls.process_vbpl_sub_part(vbpl.id, lines[line_index:])
+                break
 
             if re.search(cls._find_section_regex, line_content):
                 section_number_search = re.search('\\b\\d+', line_content)
@@ -265,13 +272,17 @@ class VbplService:
                     if next_node is None:
                         break
 
+                    node_content = get_html_node_text(next_node)
+
                     vbpl_fulltext_obj, check = cls.update_vbpl_phapquy_fulltext(next_node, vbpl_fulltext_obj)
                     if check:
                         next_node = next_node.find_next_sibling('p')
                         continue
 
-                    node_content = get_html_node_text(next_node)
-                    if re.search(cls._find_section_regex, node_content) or re.search('_{2,}', node_content):
+                    if (re.search(cls._find_section_regex, node_content)
+                            or re.search('_{2,}', node_content)
+                            or next_node.find_next_sibling('p') is None)\
+                            or re.search(cls._find_start_sub_part_regex, node_content):
                         section_content = '\n'.join(content)
 
                         new_fulltext_section = VbplToanVan(
@@ -293,6 +304,22 @@ class VbplService:
 
                     content.append(get_html_node_text(next_node))
         return results
+
+    @classmethod
+    def process_vbpl_sub_part(cls, vbpl_id, sub_part_lines):
+        sub_parts = []
+        for line in sub_part_lines:
+            line_content = get_html_node_text(line)
+            if re.search(cls._find_sub_part_regex, line_content):
+                current_sub_part = re.findall('(?<=lục ).+', line_content)[0]
+                sub_parts.append(current_sub_part)
+
+        new_vbpl_sub_part = VbplSubPart(
+            vbpl_id=vbpl_id,
+            sub_parts=' '.join(sub_parts)
+        )
+        with LocalSession.begin() as session:
+            session.add(new_vbpl_sub_part)
 
     @classmethod
     async def crawl_vbpl_phapquy_fulltext(cls, vbpl: Vbpl):
@@ -803,6 +830,7 @@ class VbplService:
                                 if len(lines) == 0:
                                     lines = full_text.find_all('div')
                                 results = cls.process_html_full_text(vbpl, lines)
+                            break
                         except Exception as e:
                             _logger.exception(f'Get tvpl html {result_url} {e}')
                             raise CommonException(500, 'Get tvpl html')

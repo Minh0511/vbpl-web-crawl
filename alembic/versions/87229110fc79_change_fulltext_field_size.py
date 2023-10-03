@@ -24,7 +24,7 @@ def upgrade():
                existing_nullable=True)
     op.alter_column('vbpl_toan_van', 'chapter_name',
                existing_type=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=100),
-               type_=sa.String(length=200),
+               type_=mysql.TEXT,
                existing_nullable=True)
     op.alter_column('vbpl_toan_van', 'big_part_name',
                existing_type=mysql.VARCHAR(collation='utf8mb4_unicode_ci', length=100),

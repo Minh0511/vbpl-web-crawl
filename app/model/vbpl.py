@@ -21,7 +21,7 @@ class Vbpl(BareBaseModel):
     applicable_information = Column(String(100), nullable=True)
     sector = Column(String(100), nullable=True)
     html = Column(LONGTEXT, nullable=True)
-    org_pdf_link = Column(String(200), nullable=True)
+    org_pdf_link = Column(Text, nullable=True)
 
     # relationship
     toan_van = relationship("VbplToanVan", foreign_keys='VbplToanVan.vbpl_id',
@@ -48,6 +48,11 @@ class Vbpl(BareBaseModel):
                                 primaryjoin='VbplDocMap.doc_map_id == Vbpl.id',
                                 back_populates="related",
                                 lazy='select')
+
+    sub_part = relationship("VbplSubPart", foreign_keys='VbplSubPart.vbpl_id',
+                            primaryjoin='VbplSubPart.vbpl_id == Vbpl.id',
+                            back_populates="vbpl",
+                            lazy='select')
 
     def __str__(self):
         return (f'########################\n'
@@ -138,3 +143,20 @@ class VbplDocMap(Base):
         return (f'Source: {self.source_id},\n'
                 f'Doc map: {self.doc_map_id},\n'
                 f'Doc type: {self.doc_map_type}')
+
+
+class VbplSubPart(Base):
+    __tablename__ = 'vbpl_sub_part'
+
+    vbpl_id = Column(Integer, ForeignKey('vbpl.id'), primary_key=True, nullable=False)
+    sub_parts = Column(String(100), nullable=False)
+
+    # relationship
+    vbpl = relationship("Vbpl", foreign_keys='VbplSubPart.vbpl_id',
+                        primaryjoin='and_(VbplSubPart.vbpl_id == Vbpl.id, Vbpl.deleted_at.is_(None))',
+                        back_populates="sub_part",
+                        lazy='select')
+
+    def __str__(self):
+        return (f'Vbpl: {self.vbpl_id},\n'
+                f'Sub parts: {self.sub_parts}')
