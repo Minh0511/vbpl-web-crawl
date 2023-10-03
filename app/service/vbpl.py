@@ -414,9 +414,11 @@ class VbplService:
 
                 bread_crumbs = soup.find('div', {"class": "box-map"})
                 title = bread_crumbs.find('a', {"href": ""})
-                vbpl.title = title.text.strip()
+                if vbpl.title is None:
+                    vbpl.title = title.text.strip()
                 sub_title = soup.find('td', {'class': 'title'})
-                vbpl.sub_title = sub_title.text.strip()
+                if vbpl.sub_title is None:
+                    vbpl.sub_title = sub_title.text.strip()
 
                 regex_dict = {
                     'serial_number': 'Số ký hiệu',
@@ -470,9 +472,11 @@ class VbplService:
                 bread_crumbs = soup.find('div', {"class": "box-map"})
 
                 title = bread_crumbs.find('a', {"href": ""})
-                vbpl.title = title.text.strip()
+                if vbpl.title is None:
+                    vbpl.title = title.text.strip()
                 sub_title = soup.find('td', {'class': 'title'})
-                vbpl.sub_title = sub_title.text.strip()
+                if vbpl.sub_title is None:
+                    vbpl.sub_title = sub_title.text.strip()
 
                 table_rows = properties.find_all('tr')
 
