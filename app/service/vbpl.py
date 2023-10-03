@@ -92,7 +92,7 @@ class VbplService:
 
     @classmethod
     async def crawl_all_vbpl(cls, vbpl_type: VbplType):
-        total_doc = await cls.get_total_doc(vbpl_type)
+        # total_doc = await cls.get_total_doc(vbpl_type)
         total_pages = 1000
         full_id_list = []
 
@@ -108,13 +108,6 @@ class VbplService:
         with concurrent.futures.ThreadPoolExecutor(max_workers=cls._max_threads) as executor:
             doc_map_coroutines = [cls.crawl_vbpl_doc_map(doc_id, vbpl_type) for doc_id in full_id_list]
             executor.map(asyncio.run, doc_map_coroutines)
-
-        # for i in range(1, total_pages):
-        #     await cls.crawl_vbpl_in_one_page(i, full_id_list, vbpl_type)
-
-        # for doc_id in full_id_list:
-        #     await cls.crawl_vbpl_related_doc(doc_id)
-        #     await cls.crawl_vbpl_doc_map(doc_id, vbpl_type)
 
     @classmethod
     async def crawl_vbpl_in_one_page(cls, page, full_id_list, vbpl_type: VbplType):
@@ -159,36 +152,30 @@ class VbplService:
                         title=get_html_node_text(link),
                         sub_title=get_html_node_text(sub_title)
                     )
+                    vbpl_fulltext = None
+
                     if vbpl_type == VbplType.PHAP_QUY:
                         await cls.crawl_vbpl_phapquy_info(new_vbpl)
+                        await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
                         vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
                         await cls.search_concetti(new_vbpl)
 
-                        with LocalSession.begin() as session:
-                            session.add(new_vbpl)
-                            if vbpl_fulltext is not None:
-                                for fulltext_section in vbpl_fulltext:
-                                    check_fulltext = session.query(VbplToanVan).filter(
-                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                        VbplToanVan.section_number == fulltext_section.section_number).first()
-                                    if check_fulltext is None:
-                                        session.add(fulltext_section)
-
                     elif vbpl_type == VbplType.HOP_NHAT:
                         await cls.crawl_vbpl_hopnhat_info(new_vbpl)
+                        await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
                         await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
                         await cls.search_concetti(new_vbpl)
                         vbpl_fulltext = await cls.additional_html_crawl(new_vbpl)
 
-                        with LocalSession.begin() as session:
-                            session.add(new_vbpl)
-                            if vbpl_fulltext is not None:
-                                for fulltext_section in vbpl_fulltext:
-                                    check_fulltext = session.query(VbplToanVan).filter(
-                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                        VbplToanVan.section_number == fulltext_section.section_number).first()
-                                    if check_fulltext is None:
-                                        session.add(fulltext_section)
+                    with LocalSession.begin() as session:
+                        session.add(new_vbpl)
+                        if vbpl_fulltext is not None:
+                            for fulltext_section in vbpl_fulltext:
+                                check_fulltext = session.query(VbplToanVan).filter(
+                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                    VbplToanVan.section_number == fulltext_section.section_number).first()
+                                if check_fulltext is None:
+                                    session.add(fulltext_section)
 
                     # update progress
                     progress += 1
@@ -392,7 +379,8 @@ class VbplService:
                 soup = BeautifulSoup(await resp.text(), 'lxml')
 
                 properties = soup.find('div', {"class": "vbProperties"})
-                files = soup.find('ul', {'class': 'fileAttack'})
+                if properties is None:
+                    return
 
                 table_rows = properties.find_all('tr')
                 date_format = '%d/%m/%Y'
@@ -431,28 +419,6 @@ class VbplService:
                         for key in regex_dict.keys():
                             check_table_cell(key, cell, vbpl)
 
-                file_urls = []
-                file_links = files.find_all('li')
-
-                for link in file_links:
-                    link_node = link.find_all('a')[0]
-                    if re.search('.+.pdf', get_html_node_text(link_node)) \
-                            or re.search('.+.doc', get_html_node_text(link_node)) \
-                            or re.search('.+.docx', get_html_node_text(link_node)):
-                        href = link_node['href']
-                        file_url = href
-                        if re.search('javascript:downloadfile', href):
-                            file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
-                        file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
-                if len(file_urls) > 0:
-                    local_links = []
-                    for url in file_urls:
-                        doc_link = get_document(url, True)
-                        if doc_link is not None:
-                            local_links.append(get_document(url, True))
-                    if len(local_links) > 0:
-                        vbpl.file_link = ' '.join(local_links)
-                    vbpl.org_pdf_link = ' '.join(file_urls)
         except Exception as e:
             _logger.exception(f'Crawl vbpl hopnhat info {vbpl.id} {e}')
             raise CommonException(500, 'Crawl vbpl thuoc tinh')
@@ -471,9 +437,11 @@ class VbplService:
 
                 properties = soup.find('div', {"class": "vbProperties"})
                 info = soup.find('div', {'class': 'vbInfo'})
-                files = soup.find('ul', {'class': 'fileAttack'})
+                if properties is None:
+                    return
 
                 bread_crumbs = soup.find('div', {"class": "box-map"})
+
                 title = bread_crumbs.find('a', {"href": ""})
                 vbpl.title = title.text.strip()
                 sub_title = soup.find('td', {'class': 'title'})
@@ -516,37 +484,16 @@ class VbplService:
                         for key in regex_dict.keys():
                             check_table_cell(key, cell, vbpl)
 
-                info_rows = info.find_all('li')
+                if info is not None:
+                    info_rows = info.find_all('li')
 
-                for row in info_rows:
-                    if re.search(state_regex, str(row)):
-                        vbpl.state = get_html_node_text(row)[len(state_regex):].strip()
-                    elif re.search(expiration_date_regex, str(row)):
-                        date_content = get_html_node_text(row)[len(expiration_date_regex):].strip()
-                        vbpl.expiration_date = datetime.strptime(date_content, date_format)
+                    for row in info_rows:
+                        if re.search(state_regex, str(row)):
+                            vbpl.state = get_html_node_text(row)[len(state_regex):].strip()
+                        elif re.search(expiration_date_regex, str(row)):
+                            date_content = get_html_node_text(row)[len(expiration_date_regex):].strip()
+                            vbpl.expiration_date = datetime.strptime(date_content, date_format)
 
-                file_urls = []
-                file_links = files.find_all('li')
-
-                for link in file_links:
-                    link_node = link.find_all('a')[0]
-                    link_content = get_html_node_text(link_node)
-                    if re.search('.+.pdf', link_content) \
-                            or re.search('.+.doc', link_content) \
-                            or re.search('.+.docx', link_content):
-                        href = link_node['href']
-                        file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
-                        file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
-
-                if len(file_urls) > 0:
-                    local_links = []
-                    for url in file_urls:
-                        doc_link = get_document(url, True)
-                        if doc_link is not None:
-                            local_links.append(get_document(url, True))
-                    if len(local_links) > 0:
-                        vbpl.file_link = ' '.join(local_links)
-                    vbpl.org_pdf_link = ' '.join(file_urls)
         except Exception as e:
             _logger.exception(f'Crawl vbpl phapquy info {vbpl.id} {e}')
             raise CommonException(500, 'Crawl vbpl thuoc tinh')
@@ -860,6 +807,64 @@ class VbplService:
                             _logger.exception(f'Get tvpl html {result_url} {e}')
                             raise CommonException(500, 'Get tvpl html')
         return results
+
+    @classmethod
+    async def crawl_vbpl_pdf(cls, vbpl: Vbpl, vbpl_type: VbplType):
+        if vbpl_type == VbplType.PHAP_QUY:
+            possible_path = [
+                VbplTab.FULL_TEXT.value,
+                VbplTab.ATTRIBUTE.value,
+                VbplTab.RELATED_DOC.value,
+                VbplTab.DOC_MAP.value
+            ]
+        else:
+            possible_path = [
+                VbplTab.FULL_TEXT_HOP_NHAT.value,
+                VbplTab.FULL_TEXT_HOP_NHAT_2.value,
+                VbplTab.ATTRIBUTE_HOP_NHAT.value,
+                VbplTab.DOC_MAP_HOP_NHAT.value
+            ]
+
+        for path in possible_path:
+            aspx_url = f'/TW/Pages/vbpq-{path}.aspx'
+            query_params = {
+                'ItemID': vbpl.id
+            }
+
+            try:
+                resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
+                if resp.status == HTTPStatus.OK:
+                    soup = BeautifulSoup(await resp.text(), 'lxml')
+                    files = soup.find('ul', {'class': 'fileAttack'})
+                    if files is not None:
+                        file_urls = []
+                        file_links = files.find_all('li')
+
+                        for link in file_links:
+                            link_node = link.find_all('a')[0]
+                            link_content = get_html_node_text(link_node)
+                            if re.search('.+.pdf', link_content) \
+                                    or re.search('.+.doc', link_content) \
+                                    or re.search('.+.docx', link_content):
+                                href = link_node['href']
+                                if re.search('javascript:downloadfile', href):
+                                    file_url = href[len('javascript:downloadfile('):-2].split(',')[1][1:-1]
+                                    file_urls.append(quote(setting.VBPL_PDF_BASE_URL + file_url, safe='/:?'))
+
+                        if len(file_urls) > 0:
+                            local_links = []
+                            for url in file_urls:
+                                doc_link = get_document(url, True)
+                                if doc_link is not None:
+                                    local_links.append(get_document(url, True))
+                            if len(local_links) > 0:
+                                vbpl.file_link = ' '.join(local_links)
+                            vbpl.org_pdf_link = ' '.join(file_urls)
+                        break
+
+            except Exception as e:
+                _logger.exception(f"Crawl vbpl pdf {vbpl.id}: {e}")
+                raise CommonException(500, f"Crawl vbpl pdf")
 
     @classmethod
     async def crawl_vbpl_by_id(cls, vbpl_id, vbpl_type: VbplType):
