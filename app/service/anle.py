@@ -280,16 +280,22 @@ class AnleService:
         with LocalSession.begin() as session:
             query = session.query(Anle)
 
-        sql_query = str(query)
         sql_folder_path = 'documents/preview/anle'
         os.makedirs(sql_folder_path, exist_ok=True)
         sql_file_path = os.path.join(sql_folder_path, 'anle_preview_script.sql')
 
-        with open(sql_file_path, 'w') as f:
+        with open(sql_file_path, 'w') as dump_file:
             for anle_instance in query:
-                values = ", ".join([f"'{getattr(anle_instance, column)}'" for column in Anle.__table__.columns.keys()])
-                insert_sql = f"INSERT INTO anle ({', '.join(Anle.__table__.columns.keys())}) VALUES ({values});"
-                f.write(insert_sql + '\n')
+                values = []
+                for column in Anle.__table__.columns.keys():
+                    value = getattr(anle_instance, column)
+                    if value is None:
+                        values.append("NULL")
+                    else:
+                        values.append(f"'{value}'")
+                values_str = ", ".join(values)
+                insert_sql = f"INSERT INTO anle ({', '.join(Anle.__table__.columns.keys())}) VALUES ({values_str});"
+                dump_file.write(insert_sql + '\n')
 
         file_links = []
 

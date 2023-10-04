@@ -998,17 +998,22 @@ class VbplService:
             query = session.query(Vbpl).filter(Vbpl.issuance_date == target_date).order_by(
                 Vbpl.issuance_date.desc()).limit(num_of_rows)
 
-        sql_query = str(query)
-
         sql_folder_path = 'documents/preview/vbpl'
         os.makedirs(sql_folder_path, exist_ok=True)
         sql_file_path = os.path.join(sql_folder_path, 'vbpl_preview_script.sql')
 
-        with open(sql_file_path, 'w') as f:
+        with open(sql_file_path, 'w') as dump_file:
             for vbpl_instance in query:
-                values = ", ".join([f"'{getattr(vbpl_instance, column)}'" for column in Vbpl.__table__.columns.keys()])
-                insert_sql = f"INSERT INTO vbpl ({', '.join(Vbpl.__table__.columns.keys())}) VALUES ({values});"
-                f.write(insert_sql + '\n')
+                values = []
+                for column in Vbpl.__table__.columns.keys():
+                    value = getattr(vbpl_instance, column)
+                    if value is None:
+                        values.append("NULL")
+                    else:
+                        values.append(f"'{value}'")
+                values_str = ", ".join(values)
+                insert_sql = f"INSERT INTO vbpl ({', '.join(Vbpl.__table__.columns.keys())}) VALUES ({values_str});"
+                dump_file.write(insert_sql + '\n')
 
         file_links = []
 
