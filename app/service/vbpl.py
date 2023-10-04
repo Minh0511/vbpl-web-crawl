@@ -278,6 +278,8 @@ class VbplService:
                     vbpl_fulltext_obj, check = cls.update_vbpl_phapquy_fulltext(next_node, vbpl_fulltext_obj)
                     if check:
                         next_node = next_node.find_next_sibling('p')
+                        if next_node is None:
+                            break
                         continue
 
                     if (re.search(cls._find_section_regex, node_content)
