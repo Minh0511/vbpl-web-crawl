@@ -60,6 +60,18 @@ def fetch_anle_by_id(id):
     print("Lấy dữ liệu hoàn tất")
 
 
+def preview_vbpl(num_of_rows, issuance_date):
+    print(f"Đang tải bản xem trước của {num_of_rows} vbpl")
+    asyncio.run(vbpl_service.get_vbpl_preview(num_of_rows, issuance_date))
+    print("Bản xem trước được lưu tại documents/preview/vbpl")
+
+
+def preview_anle():
+    print(f"Đang tải bản xem trước của án lệ")
+    asyncio.run(anle_service.get_anle_preview())
+    print("Bản xem trước được lưu tại documents/preview/anle")
+
+
 def print_menu():
     menu = """
 ╔══════════════════════════════════════════════════════╗
@@ -77,8 +89,10 @@ def print_menu():
 ║ 6. Cào án lệ bằng ID                                 ║
 ║ 7. Tìm vbpl theo ID                                  ║
 ║ 8. Tìm án lệ theo ID                                 ║
-║ 9. --help                                            ║
-║ 10. Thoát                                            ║
+║ 9. Preview án lệ                                     ║
+║ 10. Preview văn bản pháp luật                        ║
+║ 11. --help                                           ║
+║ 12. Thoát                                            ║
 ╚══════════════════════════════════════════════════════╝
 """
     print(menu)
@@ -111,9 +125,15 @@ def main():
             elif choice == "8":
                 anle_id = input("Nhập ID án lệ: ")
                 fetch_anle_by_id(anle_id)
-            elif choice == "9" or choice == "--help":
-                print_menu()
+            elif choice == "9":
+                preview_anle()
             elif choice == "10":
+                num_of_rows = input("Nhập số dòng: ")
+                issuance_date = input("Nhập ngày ban hành (DD/MM/YYYY): ")
+                preview_vbpl(num_of_rows, issuance_date)
+            elif choice == "11" or choice == "--help":
+                print_menu()
+            elif choice == "12":
                 print("Đang thoát chương trình.")
                 break
             else:

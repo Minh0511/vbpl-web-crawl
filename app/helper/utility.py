@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 
 def convert_str_to_camel(snake_str):
@@ -79,4 +80,19 @@ def convert_datetime_to_str(date):
 
 
 def concetti_query_params_url_encode(query_params):
-    return "&".join("%s=%s" % (k,v) for k,v in query_params.items())
+    return "&".join("%s=%s" % (k, v) for k, v in query_params.items())
+
+
+def convert_str_to_datetime(date_str):
+    date_pattern = r'(\d{1,2})/(\d{1,2})/(\d{4})'
+    match = re.match(date_pattern, date_str)
+
+    if match:
+        day = match.group(1)
+        month = match.group(2)
+        year = match.group(3)
+
+        formatted_date = f'{year}-{month.zfill(2)}-{day.zfill(2)}'
+        return formatted_date
+    else:
+        return None

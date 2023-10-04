@@ -1,15 +1,12 @@
 import asyncio
-import logging
 import os
 import re
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
-
 import aiohttp
 import pdfplumber
 from bs4 import BeautifulSoup
-
 from app.helper.constant import AnleSectionConst
 from app.helper.custom_exception import CommonException
 from app.helper.db import LocalSession
@@ -20,6 +17,7 @@ from app.model import AnleSection
 from app.service.get_pdf import get_document, is_pdf
 from setting import setting
 import aspose.words as aw
+import py7zr
 
 _logger = setup_logger('anle_logger', 'log/anle.log')
 
@@ -276,3 +274,37 @@ class AnleService:
 
         print(formatted_output)
         return target_anle
+
+    @classmethod
+    async def get_anle_preview(cls):
+        with LocalSession.begin() as session:
+            query = session.query(Anle)
+
+        sql_folder_path = 'documents/preview/anle'
+        os.makedirs(sql_folder_path, exist_ok=True)
+        sql_file_path = os.path.join(sql_folder_path, 'anle_preview_script.sql')
+
+        with open(sql_file_path, 'w') as dump_file:
+            for anle_instance in query:
+                values = []
+                for column in Anle.__table__.columns.keys():
+                    value = getattr(anle_instance, column)
+                    if value is None:
+                        values.append("NULL")
+                    else:
+                        values.append(f"'{value}'")
+                values_str = ", ".join(values)
+                insert_sql = f"INSERT INTO anle ({', '.join(Anle.__table__.columns.keys())}) VALUES ({values_str});"
+                dump_file.write(insert_sql + '\n')
+
+        file_links = []
+
+        target_records = query.all()
+        for record in target_records:
+            if record.file_link is not None:
+                file_links.append(record.file_link)
+
+        output_rar_filepath = os.path.join(sql_folder_path, 'preview_anle.rar')
+        with py7zr.SevenZipFile(output_rar_filepath, 'w') as archive:
+            for file_link in file_links:
+                archive.write(file_link)
