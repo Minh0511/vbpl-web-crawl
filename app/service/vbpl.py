@@ -156,11 +156,12 @@ class VbplService:
                         sub_title=get_html_node_text(sub_title)
                     )
                     vbpl_fulltext = None
+                    vbpl_sub_part = None
 
                     if vbpl_type == VbplType.PHAP_QUY:
                         await cls.crawl_vbpl_phapquy_info(new_vbpl)
                         await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
-                        vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
+                        vbpl_fulltext, vbpl_sub_part = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
                         await cls.search_concetti(new_vbpl)
 
                     elif vbpl_type == VbplType.HOP_NHAT:
@@ -168,7 +169,7 @@ class VbplService:
                         await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
                         await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
                         await cls.search_concetti(new_vbpl)
-                        vbpl_fulltext = await cls.additional_html_crawl(new_vbpl)
+                        vbpl_fulltext, vbpl_sub_part = await cls.additional_html_crawl(new_vbpl)
 
                     with LocalSession.begin() as session:
                         session.add(new_vbpl)
@@ -179,6 +180,11 @@ class VbplService:
                                     VbplToanVan.section_number == fulltext_section.section_number).first()
                                 if check_fulltext is None:
                                     session.add(fulltext_section)
+                        if vbpl_sub_part is not None:
+                            check_sub_part = session.query(VbplSubPart).filter(
+                                VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
+                            if check_sub_part is None:
+                                session.add(vbpl_sub_part)
 
                     # update progress
                     progress += 1
@@ -246,8 +252,8 @@ class VbplService:
             line_content = get_html_node_text(line)
 
             if re.search(cls._find_start_sub_part_regex, line_content):
-                cls.process_vbpl_sub_part(vbpl.id, lines[line_index:])
-                break
+                new_vbpl_sub_part = cls.process_vbpl_sub_part(vbpl.id, lines[line_index:])
+                return results, new_vbpl_sub_part
 
             if re.search(cls._find_section_regex, line_content):
                 section_number_search = re.search('\\b\\d+', line_content)
@@ -280,8 +286,8 @@ class VbplService:
                         continue
 
                     if (re.search(cls._find_section_regex, node_content)
-                            or re.search('_{2,}', node_content)
-                            or next_node.find_next_sibling('p') is None)\
+                        or re.search('_{2,}', node_content)
+                        or next_node.find_next_sibling('p') is None) \
                             or re.search(cls._find_start_sub_part_regex, node_content):
                         section_content = '\n'.join(content)
 
@@ -303,7 +309,7 @@ class VbplService:
                         break
 
                     content.append(get_html_node_text(next_node))
-        return results
+        return results, None
 
     @classmethod
     def process_vbpl_sub_part(cls, vbpl_id, sub_part_lines):
@@ -318,8 +324,7 @@ class VbplService:
             vbpl_id=vbpl_id,
             sub_parts=' '.join(sub_parts)
         )
-        with LocalSession.begin() as session:
-            session.add(new_vbpl_sub_part)
+        return new_vbpl_sub_part
 
     @classmethod
     async def crawl_vbpl_phapquy_fulltext(cls, vbpl: Vbpl):
@@ -328,6 +333,7 @@ class VbplService:
             'ItemID': vbpl.id
         }
         results = []
+        vbpl_sub_parts = None
 
         try:
             resp = await cls.call(method='GET', url_path=aspx_url, query_params=query_params)
@@ -346,12 +352,12 @@ class VbplService:
                     lines = fulltext.find_all('div')
                 if len(lines) == 0:
                     return await cls.additional_html_crawl(vbpl)
-                results = cls.process_html_full_text(vbpl, lines)
+                results, vbpl_sub_parts = cls.process_html_full_text(vbpl, lines)
         except Exception as e:
             _logger.exception(f'Crawl vbpl phapquy fulltext {vbpl.id} {e}')
             raise CommonException(500, 'Crawl vbpl toan van')
 
-        return results
+        return results, vbpl_sub_parts
 
     @classmethod
     async def crawl_vbpl_hopnhat_fulltext(cls, vbpl: Vbpl):
@@ -781,6 +787,7 @@ class VbplService:
         threshold = 0.8
         found = False
         results = []
+        vbpl_sub_parts = None
 
         for key in key_type:
             if found:
@@ -833,12 +840,12 @@ class VbplService:
                                 lines = full_text.find_all('p')
                                 if len(lines) == 0:
                                     lines = full_text.find_all('div')
-                                results = cls.process_html_full_text(vbpl, lines)
+                                results, vbpl_sub_parts = cls.process_html_full_text(vbpl, lines)
                             break
                         except Exception as e:
                             _logger.exception(f'Get tvpl html {result_url} {e}')
                             raise CommonException(500, 'Get tvpl html')
-        return results
+        return results, vbpl_sub_parts
 
     @classmethod
     async def crawl_vbpl_pdf(cls, vbpl: Vbpl, vbpl_type: VbplType):
