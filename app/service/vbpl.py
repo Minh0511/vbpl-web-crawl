@@ -1003,8 +1003,12 @@ class VbplService:
         sql_folder_path = 'documents/preview/vbpl'
         os.makedirs(sql_folder_path, exist_ok=True)
         sql_file_path = os.path.join(sql_folder_path, 'vbpl_preview_script.sql')
+
         with open(sql_file_path, 'w') as f:
-            f.write(sql_query)
+            for vbpl_instance in query:
+                values = ", ".join([f"'{getattr(vbpl_instance, column)}'" for column in Vbpl.__table__.columns.keys()])
+                insert_sql = f"INSERT INTO vbpl ({', '.join(Vbpl.__table__.columns.keys())}) VALUES ({values});"
+                f.write(insert_sql + '\n')
 
         file_links = []
 
