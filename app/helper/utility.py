@@ -83,9 +83,16 @@ def concetti_query_params_url_encode(query_params):
     return "&".join("%s=%s" % (k, v) for k, v in query_params.items())
 
 
-def convert_str_to_datetime(str):
-    # use for following cases: "10/01/2023", "10-01-2023", "10.01.2023"
-    formatted_date_str = str.replace('/', '-').replace('.', '-')
-    date_obj = datetime.strptime(formatted_date_str, "%d-%m-%Y")
-    formatted_date = date_obj.strftime("%Y-%m-%d")
-    return formatted_date
+def convert_str_to_datetime(date_str):
+    date_pattern = r'(\d{1,2})/(\d{1,2})/(\d{4})'
+    match = re.match(date_pattern, date_str)
+
+    if match:
+        day = match.group(1)
+        month = match.group(2)
+        year = match.group(3)
+
+        formatted_date = f'{year}-{month.zfill(2)}-{day.zfill(2)}'
+        return formatted_date
+    else:
+        return None

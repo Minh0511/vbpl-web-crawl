@@ -63,13 +63,13 @@ def fetch_anle_by_id(id):
 def preview_vbpl(num_of_rows, issuance_date):
     print(f"Đang tải bản xem trước của {num_of_rows} vbpl")
     asyncio.run(vbpl_service.get_vbpl_preview(num_of_rows, issuance_date))
-    print("Bản xem trước được lưu tại documents/sql/vbpl")
+    print("Bản xem trước được lưu tại documents/preview/vbpl")
 
 
 def preview_anle():
     print(f"Đang tải bản xem trước của án lệ")
     asyncio.run(anle_service.get_anle_preview())
-    print("Bản xem trước được lưu tại documents/sql/anle")
+    print("Bản xem trước được lưu tại documents/preview/anle")
 
 
 def print_menu():

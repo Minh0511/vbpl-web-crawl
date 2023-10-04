@@ -1,20 +1,13 @@
 import asyncio
-import logging
-import math
 import os
 import re
 import copy
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
-from sqlalchemy import select, case, join
-
 import aiohttp
 import yarl
 import concurrent.futures
-
-from sqlalchemy.orm import load_only, aliased
-
 from app.entity.vbpl import VbplFullTextField
 from app.helper.custom_exception import CommonException
 from app.helper.enum import VbplTab, VbplType
@@ -30,6 +23,7 @@ from app.helper.db import LocalSession
 from urllib.parse import quote
 import Levenshtein
 from bs4 import BeautifulSoup
+import py7zr
 
 _logger = setup_logger('vbpl_logger', 'log/vbpl.log')
 find_id_regex = '(?<=ItemID=)\\d+'
@@ -1006,10 +1000,20 @@ class VbplService:
 
         sql_query = str(query)
 
-        sql_folder_path = 'documents/sql/vbpl'
+        sql_folder_path = 'documents/preview/vbpl'
         os.makedirs(sql_folder_path, exist_ok=True)
         sql_file_path = os.path.join(sql_folder_path, 'vbpl_preview_script.sql')
         with open(sql_file_path, 'w') as f:
             f.write(sql_query)
 
+        file_links = []
+
         target_records = query.all()
+        for record in target_records:
+            if record.file_link is not None:
+                file_links.append(record.file_link)
+
+        output_rar_filepath = os.path.join(sql_folder_path, 'preview_vbpl.rar')
+        with py7zr.SevenZipFile(output_rar_filepath, 'w') as archive:
+            for file_link in file_links:
+                archive.write(file_link)

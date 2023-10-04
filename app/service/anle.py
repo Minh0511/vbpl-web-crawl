@@ -1,15 +1,12 @@
 import asyncio
-import logging
 import os
 import re
 from datetime import datetime
 from http import HTTPStatus
 from typing import Dict
-
 import aiohttp
 import pdfplumber
 from bs4 import BeautifulSoup
-
 from app.helper.constant import AnleSectionConst
 from app.helper.custom_exception import CommonException
 from app.helper.db import LocalSession
@@ -20,6 +17,7 @@ from app.model import AnleSection
 from app.service.get_pdf import get_document, is_pdf
 from setting import setting
 import aspose.words as aw
+import py7zr
 
 _logger = setup_logger('anle_logger', 'log/anle.log')
 
@@ -283,11 +281,21 @@ class AnleService:
             query = session.query(Anle)
 
         sql_query = str(query)
-        sql_folder_path = 'documents/sql/anle'
+        sql_folder_path = 'documents/preview/anle'
         os.makedirs(sql_folder_path, exist_ok=True)
         sql_file_path = os.path.join(sql_folder_path, 'anle_preview_script.sql')
 
         with open(sql_file_path, 'w') as f:
             f.write(sql_query)
 
+        file_links = []
+
         target_records = query.all()
+        for record in target_records:
+            if record.file_link is not None:
+                file_links.append(record.file_link)
+
+        output_rar_filepath = os.path.join(sql_folder_path, 'preview_anle.rar')
+        with py7zr.SevenZipFile(output_rar_filepath, 'w') as archive:
+            for file_link in file_links:
+                archive.write(file_link)
