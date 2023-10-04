@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import math
+import os
 import re
 import copy
 from datetime import datetime
@@ -24,7 +25,7 @@ from app.model.vbpl import VbplSubPart
 from app.service.get_pdf import get_document
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text, convert_datetime_to_str, \
-    concetti_query_params_url_encode
+    concetti_query_params_url_encode, convert_str_to_datetime
 from app.helper.db import LocalSession
 from urllib.parse import quote
 import Levenshtein
@@ -995,3 +996,20 @@ class VbplService:
             print(formatted_related_doc)
 
         return vbpl_info, vbpl_related_document_info, vbpl_doc_map_info
+
+    @classmethod
+    async def get_vbpl_preview(cls, num_of_rows, issuance_date):
+        target_date = convert_str_to_datetime(issuance_date)
+        with LocalSession.begin() as session:
+            query = session.query(Vbpl).filter(Vbpl.issuance_date == target_date).order_by(
+                Vbpl.issuance_date.desc()).limit(num_of_rows)
+
+        sql_query = str(query)
+
+        sql_folder_path = 'documents/sql/vbpl'
+        os.makedirs(sql_folder_path, exist_ok=True)
+        sql_file_path = os.path.join(sql_folder_path, 'vbpl_preview_script.sql')
+        with open(sql_file_path, 'w') as f:
+            f.write(sql_query)
+
+        target_records = query.all()

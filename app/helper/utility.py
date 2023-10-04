@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 
 def convert_str_to_camel(snake_str):
@@ -79,4 +80,12 @@ def convert_datetime_to_str(date):
 
 
 def concetti_query_params_url_encode(query_params):
-    return "&".join("%s=%s" % (k,v) for k,v in query_params.items())
+    return "&".join("%s=%s" % (k, v) for k, v in query_params.items())
+
+
+def convert_str_to_datetime(str):
+    # use for following cases: "10/01/2023", "10-01-2023", "10.01.2023"
+    formatted_date_str = str.replace('/', '-').replace('.', '-')
+    date_obj = datetime.strptime(formatted_date_str, "%d-%m-%Y")
+    formatted_date = date_obj.strftime("%Y-%m-%d")
+    return formatted_date

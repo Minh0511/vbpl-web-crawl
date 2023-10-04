@@ -276,3 +276,18 @@ class AnleService:
 
         print(formatted_output)
         return target_anle
+
+    @classmethod
+    async def get_anle_preview(cls):
+        with LocalSession.begin() as session:
+            query = session.query(Anle)
+
+        sql_query = str(query)
+        sql_folder_path = 'documents/sql/anle'
+        os.makedirs(sql_folder_path, exist_ok=True)
+        sql_file_path = os.path.join(sql_folder_path, 'anle_preview_script.sql')
+
+        with open(sql_file_path, 'w') as f:
+            f.write(sql_query)
+
+        target_records = query.all()
