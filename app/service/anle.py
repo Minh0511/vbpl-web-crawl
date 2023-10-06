@@ -176,17 +176,6 @@ class AnleService:
                     for attr in anle_attribute_list:
                         href = attr['href']
                         anle_id = href.split('=')[-1]
-
-                        # check for existing anle
-                        with LocalSession.begin() as session:
-                            statement = session.query(Anle).filter(Anle.doc_id == anle_id)
-                            check_anle = session.execute(statement).all()
-                            if len(check_anle) != 0:
-                                progress += 1
-                                _logger.info(f"Progress: {progress}/{total_records}")
-                                continue
-
-                        # if it does not exist, add to db
                         new_anle = Anle(doc_id=anle_id)
                         await cls.crawl_anle_info(new_anle)
 
@@ -271,14 +260,26 @@ class AnleService:
     def to_anle_section_db(cls, file_id: str, anle_context: str, anle_solution: str, anle_content: str):
         with LocalSession.begin() as session:
             target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
-            for anle in target_anle:
-                new_anle_section = AnleSection(
-                    anle_id=anle.id,
-                    context=anle_context,
-                    solution=anle_solution,
-                    content=anle_content,
-                )
-                session.add(new_anle_section)
+            check_anle = session.execute(target_anle).all()
+            if len(check_anle) != 0:
+                for anle in target_anle:
+                    update_data = {
+                        'context': anle_context,
+                        'solution': anle_solution,
+                        'content': anle_content,
+                    }
+                    session.query(AnleSection).filter(AnleSection.anle_id == anle.id).update(update_data)
+                    session.commit()
+            else:
+                for anle in target_anle:
+                    new_anle_section = AnleSection(
+                        anle_id=anle.id,
+                        context=anle_context,
+                        solution=anle_solution,
+                        content=anle_content,
+                    )
+                    session.add(new_anle_section)
+
 
     @classmethod
     async def fetch_anle_by_id(cls, anle_id):
