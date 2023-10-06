@@ -192,45 +192,48 @@ class VbplService:
                             session.commit()
                         else:
                             session.add(new_vbpl)
-                            if vbpl_fulltext is not None:
-                                for fulltext_section in vbpl_fulltext:
-                                    check_fulltext = session.query(VbplToanVan).filter(
-                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                        VbplToanVan.section_number == fulltext_section.section_number).first()
-                                    if check_fulltext is None:
-                                        session.add(fulltext_section)
-                                    else:
-                                        updated_fulltext = {
-                                            'section_name': fulltext_section.section_name,
-                                            'section_content': fulltext_section.section_content,
-                                            'chapter_number': fulltext_section.chapter_number,
-                                            'chapter_name': fulltext_section.chapter_name,
-                                            'part_number': fulltext_section.part_number,
-                                            'part_name': fulltext_section.part_name,
-                                            'mini_part_number': fulltext_section.mini_part_number,
-                                            'mini_part_name': fulltext_section.mini_part_name,
-                                            'big_part_number': fulltext_section.big_part_number,
-                                            'big_part_name': fulltext_section.big_part_name,
-                                        }
-                                        session.query(VbplToanVan).filter(
-                                            VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                            VbplToanVan.section_number == fulltext_section.section_number).update(
-                                            updated_fulltext)
-                                        session.commit()
-                            if vbpl_sub_part is not None:
-                                check_sub_part = session.query(VbplSubPart).filter(
-                                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
-                                if check_sub_part is None:
-                                    session.add(vbpl_sub_part)
+
+                        if vbpl_fulltext is not None:
+                            print("vbpl_fulltext", vbpl_fulltext)
+                            for fulltext_section in vbpl_fulltext:
+                                check_fulltext = session.query(VbplToanVan).filter(
+                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                    VbplToanVan.section_number == fulltext_section.section_number).first()
+                                print("fulltext_section",fulltext_section)
+                                if check_fulltext is None:
+                                    session.add(fulltext_section)
                                 else:
-                                    updated_sub_part = {
-                                        'sub_parts': vbpl_sub_part.sub_parts
+                                    updated_fulltext = {
+                                        'section_name': fulltext_section.section_name,
+                                        'section_content': fulltext_section.section_content,
+                                        'chapter_number': fulltext_section.chapter_number,
+                                        'chapter_name': fulltext_section.chapter_name,
+                                        'part_number': fulltext_section.part_number,
+                                        'part_name': fulltext_section.part_name,
+                                        'mini_part_number': fulltext_section.mini_part_number,
+                                        'mini_part_name': fulltext_section.mini_part_name,
+                                        'big_part_number': fulltext_section.big_part_number,
+                                        'big_part_name': fulltext_section.big_part_name,
                                     }
                                     session.query(VbplToanVan).filter(
                                         VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
                                         VbplToanVan.section_number == fulltext_section.section_number).update(
-                                        updated_sub_part)
+                                        updated_fulltext)
                                     session.commit()
+                        if vbpl_sub_part is not None:
+                            check_sub_part = session.query(VbplSubPart).filter(
+                                VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
+                            if check_sub_part is None:
+                                session.add(vbpl_sub_part)
+                            else:
+                                updated_sub_part = {
+                                    'sub_parts': vbpl_sub_part.sub_parts
+                                }
+                                session.query(VbplToanVan).filter(
+                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                    VbplToanVan.section_number == fulltext_section.section_number).update(
+                                    updated_sub_part)
+                                session.commit()
 
                     # update progress
                     progress += 1
