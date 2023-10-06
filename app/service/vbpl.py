@@ -145,11 +145,6 @@ class VbplService:
                     # check for existing vbpl
                     with LocalSession.begin() as session:
                         check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
-                        if check_vbpl is not None:
-                            progress += 1
-                            _logger.info(f'Finished crawling vbpl {doc_id}')
-                            _logger.info(f"Page {page} progress: {progress}/{max_progress}")
-                            continue
 
                     # if it does not exist, add to db
                     new_vbpl = Vbpl(
@@ -175,19 +170,67 @@ class VbplService:
 
                     # add to db
                     with LocalSession.begin() as session:
-                        session.add(new_vbpl)
-                        if vbpl_fulltext is not None:
-                            for fulltext_section in vbpl_fulltext:
-                                check_fulltext = session.query(VbplToanVan).filter(
-                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                    VbplToanVan.section_number == fulltext_section.section_number).first()
-                                if check_fulltext is None:
-                                    session.add(fulltext_section)
-                        if vbpl_sub_part is not None:
-                            check_sub_part = session.query(VbplSubPart).filter(
-                                VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
-                            if check_sub_part is None:
-                                session.add(vbpl_sub_part)
+                        if check_vbpl is not None:
+                            update_vbpl = {
+                                'file_link': new_vbpl.file_link,
+                                'title': new_vbpl.title,
+                                'doc_type': new_vbpl.doc_type,
+                                'serial_number': new_vbpl.serial_number,
+                                'issuance_date': new_vbpl.issuance_date,
+                                'effective_date': new_vbpl.effective_date,
+                                'expiration_date': new_vbpl.expiration_date,
+                                'gazette_date': new_vbpl.gazette_date,
+                                'state': new_vbpl.state,
+                                'issuing_authority': new_vbpl.issuing_authority,
+                                'applicable_information': new_vbpl.applicable_information,
+                                'html': new_vbpl.html,
+                                'org_pdf_link': new_vbpl.org_pdf_link,
+                                'sub_title': new_vbpl.sub_title,
+                                'sector': new_vbpl.sector,
+                            }
+                            session.query(Vbpl).filter(Vbpl.id == doc_id).update(update_vbpl)
+                            session.commit()
+                        else:
+                            session.add(new_vbpl)
+                            if vbpl_fulltext is not None:
+                                for fulltext_section in vbpl_fulltext:
+                                    check_fulltext = session.query(VbplToanVan).filter(
+                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                        VbplToanVan.section_number == fulltext_section.section_number).first()
+                                    if check_fulltext is None:
+                                        session.add(fulltext_section)
+                                    else:
+                                        updated_fulltext = {
+                                            'section_name': fulltext_section.section_name,
+                                            'section_content': fulltext_section.section_content,
+                                            'chapter_number': fulltext_section.chapter_number,
+                                            'chapter_name': fulltext_section.chapter_name,
+                                            'part_number': fulltext_section.part_number,
+                                            'part_name': fulltext_section.part_name,
+                                            'mini_part_number': fulltext_section.mini_part_number,
+                                            'mini_part_name': fulltext_section.mini_part_name,
+                                            'big_part_number': fulltext_section.big_part_number,
+                                            'big_part_name': fulltext_section.big_part_name,
+                                        }
+                                        session.query(VbplToanVan).filter(
+                                            VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                            VbplToanVan.section_number == fulltext_section.section_number).update(
+                                            updated_fulltext)
+                                        session.commit()
+                            if vbpl_sub_part is not None:
+                                check_sub_part = session.query(VbplSubPart).filter(
+                                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
+                                if check_sub_part is None:
+                                    session.add(vbpl_sub_part)
+                                else:
+                                    updated_sub_part = {
+                                        'sub_parts': vbpl_sub_part.sub_parts
+                                    }
+                                    session.query(VbplToanVan).filter(
+                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                        VbplToanVan.section_number == fulltext_section.section_number).update(
+                                        updated_sub_part)
+                                    session.commit()
 
                     # update progress
                     progress += 1
@@ -593,7 +636,8 @@ class VbplService:
                                 }
                                 session.query(VbplRelatedDocument).filter(
                                     VbplRelatedDocument.source_id == new_vbpl_related_doc.source_id,
-                                    VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).update(update_data)
+                                    VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).update(
+                                    update_data)
                                 session.commit()
 
             sleep(1)
