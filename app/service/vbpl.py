@@ -93,7 +93,7 @@ class VbplService:
     @classmethod
     async def crawl_all_vbpl(cls, vbpl_type: VbplType):
         # total_doc = await cls.get_total_doc(vbpl_type)
-        total_pages = 1000
+        total_pages = 1
         full_id_list = []
 
         # crawl all vbpl info and full text using multi thread
@@ -585,6 +585,17 @@ class VbplService:
                                 VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).first()
                             if check_related_doc is None:
                                 session.add(new_vbpl_related_doc)
+                            else:
+                                update_data = {
+                                    'source_id': vbpl_id,
+                                    'related_id': doc_id,
+                                    'doc_type': doc_type
+                                }
+                                session.query(VbplRelatedDocument).filter(
+                                    VbplRelatedDocument.source_id == new_vbpl_related_doc.source_id,
+                                    VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).update(update_data)
+                                session.commit()
+
             sleep(1)
         except Exception as e:
             _logger.exception(f'Crawl vbpl related doc {vbpl_id} {e}')
@@ -646,6 +657,16 @@ class VbplService:
                                     VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).first()
                                 if check_doc_map is None:
                                     session.add(new_vbpl_doc_map)
+                                else:
+                                    update_data = {
+                                        'source_id': vbpl_id,
+                                        'doc_map_id': doc_map_id,
+                                        'doc_map_type': doc_map_title
+                                    }
+                                    session.query(VbplDocMap).filter(
+                                        VbplDocMap.source_id == new_vbpl_doc_map.source_id,
+                                        VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).update(update_data)
+                                    session.commit()
 
                 elif vbpl_type == VbplType.HOP_NHAT:
                     doc_map_nodes = soup.find_all('div', {'class': 'w'})
