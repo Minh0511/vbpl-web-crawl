@@ -192,51 +192,18 @@ class VbplService:
                             session.commit()
                         else:
                             session.add(new_vbpl)
-
-                        if vbpl_fulltext is not None:
-                            for fulltext_section in vbpl_fulltext:
-                                print("fulltext_section", fulltext_section)
-                                test = session.query(VbplToanVan).all()
-                                print("test", test)
-                                check_fulltext = session.query(VbplToanVan).filter(
-                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                    VbplToanVan.section_number == fulltext_section.section_number).first()
-                                print("anything")
-                                print("check_fulltext", check_fulltext)
-                                if check_fulltext is None:
-                                    session.add(fulltext_section)
-                                else:
-                                    updated_fulltext = {
-                                        'section_name': fulltext_section.section_name,
-                                        'section_content': fulltext_section.section_content,
-                                        'chapter_number': fulltext_section.chapter_number,
-                                        'chapter_name': fulltext_section.chapter_name,
-                                        'part_number': fulltext_section.part_number,
-                                        'part_name': fulltext_section.part_name,
-                                        'mini_part_number': fulltext_section.mini_part_number,
-                                        'mini_part_name': fulltext_section.mini_part_name,
-                                        'big_part_number': fulltext_section.big_part_number,
-                                        'big_part_name': fulltext_section.big_part_name,
-                                    }
-                                    session.query(VbplToanVan).filter(
+                            if vbpl_fulltext is not None:
+                                for fulltext_section in vbpl_fulltext:
+                                    check_fulltext = session.query(VbplToanVan).filter(
                                         VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                        VbplToanVan.section_number == fulltext_section.section_number).update(
-                                        updated_fulltext)
-                                    session.commit()
-                        if vbpl_sub_part is not None:
-                            check_sub_part = session.query(VbplSubPart).filter(
-                                VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
-                            if check_sub_part is None:
-                                session.add(vbpl_sub_part)
-                            else:
-                                updated_sub_part = {
-                                    'sub_parts': vbpl_sub_part.sub_parts
-                                }
-                                session.query(VbplToanVan).filter(
-                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                    VbplToanVan.section_number == fulltext_section.section_number).update(
-                                    updated_sub_part)
-                                session.commit()
+                                        VbplToanVan.section_number == fulltext_section.section_number).first()
+                                    if check_fulltext is None:
+                                        session.add(fulltext_section)
+                            if vbpl_sub_part is not None:
+                                check_sub_part = session.query(VbplSubPart).filter(
+                                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
+                                if check_sub_part is None:
+                                    session.add(vbpl_sub_part)
 
                     # update progress
                     progress += 1
@@ -636,8 +603,6 @@ class VbplService:
                                 session.add(new_vbpl_related_doc)
                             else:
                                 update_data = {
-                                    'source_id': vbpl_id,
-                                    'related_id': doc_id,
                                     'doc_type': doc_type
                                 }
                                 session.query(VbplRelatedDocument).filter(
@@ -709,8 +674,6 @@ class VbplService:
                                     session.add(new_vbpl_doc_map)
                                 else:
                                     update_data = {
-                                        'source_id': vbpl_id,
-                                        'doc_map_id': doc_map_id,
                                         'doc_map_type': doc_map_title
                                     }
                                     session.query(VbplDocMap).filter(
@@ -735,7 +698,19 @@ class VbplService:
                             doc_map_type='Văn bản được hợp nhất'
                         )
                         with LocalSession.begin() as session:
-                            session.add(new_vbpl_doc_map)
+                            check_doc_map = session.query(VbplDocMap).filter(
+                                VbplDocMap.source_id == new_vbpl_doc_map.source_id,
+                                VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).first()
+                            if check_doc_map is None:
+                                session.add(new_vbpl_doc_map)
+                            else:
+                                update_data = {
+                                    'doc_map_type': 'Văn bản được hợp nhất'
+                                }
+                                session.query(VbplDocMap).filter(
+                                    VbplDocMap.source_id == new_vbpl_doc_map.source_id,
+                                    VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).update(update_data)
+                                session.commit()
             sleep(1)
         except Exception as e:
             _logger.exception(f'Crawl vbpl doc map {vbpl_id} {e}')
