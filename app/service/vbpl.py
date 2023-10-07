@@ -194,12 +194,15 @@ class VbplService:
                             session.add(new_vbpl)
 
                         if vbpl_fulltext is not None:
-                            print("vbpl_fulltext", vbpl_fulltext)
                             for fulltext_section in vbpl_fulltext:
+                                print("fulltext_section", fulltext_section)
+                                test = session.query(VbplToanVan).all()
+                                print("test", test)
                                 check_fulltext = session.query(VbplToanVan).filter(
                                     VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
                                     VbplToanVan.section_number == fulltext_section.section_number).first()
-                                print("fulltext_section",fulltext_section)
+                                print("anything")
+                                print("check_fulltext", check_fulltext)
                                 if check_fulltext is None:
                                     session.add(fulltext_section)
                                 else:
