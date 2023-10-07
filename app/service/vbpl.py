@@ -93,7 +93,7 @@ class VbplService:
     @classmethod
     async def crawl_all_vbpl(cls, vbpl_type: VbplType):
         # total_doc = await cls.get_total_doc(vbpl_type)
-        total_pages = 1
+        total_pages = 1000
         full_id_list = []
 
         # crawl all vbpl info and full text using multi thread
