@@ -50,6 +50,7 @@ class VbplService:
     def get_headers(cls) -> Dict:
         return {'Content-Type': 'application/json'}
 
+    # base url call to use in later functions
     @classmethod
     async def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=90):
         url = cls._api_base_url + url_path
@@ -69,6 +70,7 @@ class VbplService:
                             f" request_params {str(query_params)}, request_body {str(json_data)},"
                             f" error {str(e)}")
 
+    # get total number of vbpl
     @classmethod
     async def get_total_doc(cls, vbpl_type: VbplType):
         try:
@@ -94,15 +96,18 @@ class VbplService:
         total_pages = 1000
         full_id_list = []
 
+        # crawl all vbpl info and full text using multi thread
         with concurrent.futures.ThreadPoolExecutor(max_workers=cls._max_threads) as executor:
             info_and_fulltext_coroutines = [cls.crawl_vbpl_in_one_page(page, full_id_list, vbpl_type) for page in
                                             range(1, total_pages + 1)]
             executor.map(asyncio.run, info_and_fulltext_coroutines)
 
+        # crawl vbpl relate doc using multi thread
         with concurrent.futures.ThreadPoolExecutor(max_workers=cls._max_threads) as executor:
             related_doc_coroutines = [cls.crawl_vbpl_related_doc(doc_id) for doc_id in full_id_list]
             executor.map(asyncio.run, related_doc_coroutines)
 
+        # crawl vbpl doc map using multi thread
         with concurrent.futures.ThreadPoolExecutor(max_workers=cls._max_threads) as executor:
             doc_map_coroutines = [cls.crawl_vbpl_doc_map(doc_id, vbpl_type) for doc_id in full_id_list]
             executor.map(asyncio.run, doc_map_coroutines)
@@ -137,6 +142,7 @@ class VbplService:
                     id_set.add(doc_id)
                     full_id_list.append(doc_id)
 
+                    # check for existing vbpl
                     with LocalSession.begin() as session:
                         check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
                         if check_vbpl is not None:
@@ -145,6 +151,7 @@ class VbplService:
                             _logger.info(f"Page {page} progress: {progress}/{max_progress}")
                             continue
 
+                    # if it does not exist, add to db
                     new_vbpl = Vbpl(
                         id=doc_id,
                         title=get_html_node_text(link),
@@ -166,6 +173,7 @@ class VbplService:
                         await cls.search_concetti(new_vbpl)
                         vbpl_fulltext, vbpl_sub_part = await cls.additional_html_crawl(new_vbpl)
 
+                    # add to db
                     with LocalSession.begin() as session:
                         session.add(new_vbpl)
                         if vbpl_fulltext is not None:
@@ -234,6 +242,7 @@ class VbplService:
         vbpl_fulltext_obj = VbplFullTextField()
         results = []
 
+        # init vbpl fulltext object
         for line in lines:
             line_content = get_html_node_text(line)
             if re.search(cls._find_section_regex, line_content):
@@ -243,6 +252,7 @@ class VbplService:
             if check:
                 continue
 
+        # process fulltext line by line
         for line_index, line in enumerate(lines):
             line_content = get_html_node_text(line)
 
@@ -356,6 +366,8 @@ class VbplService:
 
         return results, vbpl_sub_parts
 
+    # for vbpl hopnhat it does not have html like vbpl phapquy so we can only fetch its doc/pdf
+    # of course we'll still try to find its html in tvpl, you can find it in crawl_vbpl_in_one_page
     @classmethod
     async def crawl_vbpl_hopnhat_fulltext(cls, vbpl: Vbpl):
         if vbpl.org_pdf_link is not None and vbpl.org_pdf_link.strip() != '':
@@ -423,6 +435,7 @@ class VbplService:
                 if vbpl.sub_title is None:
                     vbpl.sub_title = sub_title.text.strip()
 
+                # regex dict to automate info extraction
                 regex_dict = {
                     'serial_number': 'Số ký hiệu',
                     'effective_date': 'Ngày xác thực',
@@ -444,6 +457,7 @@ class VbplService:
                                 field_value = get_html_node_text(field_value_node)
                             setattr(input_vbpl, field, field_value)
 
+                # extract information based on regex dict
                 for row in table_rows:
                     table_cells = row.find_all('td')
 
@@ -455,6 +469,8 @@ class VbplService:
             _logger.exception(f'Crawl vbpl hopnhat info {vbpl.id} {e}')
             raise CommonException(500, 'Crawl vbpl thuoc tinh')
 
+    # quite similar to crawl_vbpl_hopnhat_info but only a few changes because this web is retarded
+    # I split into 2 functions to avoid confusions
     @classmethod
     async def crawl_vbpl_phapquy_info(cls, vbpl: Vbpl):
         aspx_url = f'/TW/Pages/vbpq-{VbplTab.ATTRIBUTE.value}.aspx'
@@ -598,6 +614,8 @@ class VbplService:
                             link_ref = re.findall(find_id_regex, link.get('href'))
                             doc_map_id = None
 
+                            # in some cases, the doc map id is embedded in the link but some cases it is not
+                            # so we have to manually search for those cases, like i said, this web is retarded
                             if len(link_ref) > 0:
                                 doc_map_id = int(link_ref[0])
                             else:
@@ -652,6 +670,7 @@ class VbplService:
             _logger.exception(f'Crawl vbpl doc map {vbpl_id} {e}')
             raise CommonException(500, 'Crawl vbpl luoc do')
 
+    # fetch additional data from concetti
     @classmethod
     async def search_concetti(cls, vbpl: Vbpl):
         search_url = f'/documents/search'
@@ -715,6 +734,7 @@ class VbplService:
                             continue
 
                         for item in result_items:
+                            # if the search result is similar to the source vbpl
                             if (Levenshtein.ratio(search_key, item['name']) >= threshold
                                     or Levenshtein.ratio(search_key, item['number']) >= threshold
                                     or Levenshtein.ratio(search_key, item['key']) >= threshold):
@@ -777,6 +797,7 @@ class VbplService:
         if vbpl.sector is None:
             vbpl.sector = 'Lĩnh vực khác'
 
+    # additional html crawl from tvpl
     @classmethod
     async def additional_html_crawl(cls, vbpl: Vbpl):
         search_url = '/page/tim-van-ban.aspx'
@@ -844,8 +865,12 @@ class VbplService:
                             raise CommonException(500, 'Get tvpl html')
         return results, vbpl_sub_parts
 
+    # get vbpl pdf from Download Tab
     @classmethod
     async def crawl_vbpl_pdf(cls, vbpl: Vbpl, vbpl_type: VbplType):
+        # the download Tab is embedded in any link that does not return null
+        # unfortunately any link relate to vbpl can return null so we need to check all of them
+        # and i will say it again, this web is retarded
         if vbpl_type == VbplType.PHAP_QUY:
             possible_path = [
                 VbplTab.FULL_TEXT.value,
