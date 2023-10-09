@@ -7,7 +7,7 @@ class Anle(BareBaseModel):
     __tablename__ = 'anle'
 
     doc_id = Column(String(25), nullable=False)
-    file_link = Column(String(200), nullable=True)
+    file_link = Column(String(1000), nullable=True)
     title = Column(String(455), nullable=False)
     serial_number = Column(String(100), nullable=False)
     adoption_date = Column(DateTime, nullable=True)
@@ -17,7 +17,7 @@ class Anle(BareBaseModel):
     state = Column(String(100), nullable=True)
     sector = Column(String(100), nullable=True)
     publication_decision = Column(String(255), nullable=True)
-    org_pdf_link = Column(String(200), nullable=True)
+    org_pdf_link = Column(String(1000), nullable=True)
 
     # relationship
     section = relationship("AnleSection", foreign_keys='AnleSection.anle_id',

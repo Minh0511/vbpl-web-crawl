@@ -7,9 +7,9 @@ from sqlalchemy.orm import relationship
 class Vbpl(BareBaseModel):
     __tablename__ = 'vbpl'
 
-    file_link = Column(String(1000), nullable=True)
+    file_link = Column(Text, nullable=True)
     title = Column(String(455), nullable=False)
-    sub_title = Column(String(1000), nullable=True)
+    sub_title = Column(Text, nullable=True)
     doc_type = Column(String(100), nullable=True)
     serial_number = Column(String(100), nullable=False)
     issuance_date = Column(DateTime, nullable=True)
@@ -81,12 +81,12 @@ class VbplToanVan(Base):
     section_number = Column(Integer, primary_key=True, nullable=False)
     section_name = Column(String(400), nullable=True)
     section_content = Column(LONGTEXT, nullable=True)
-    chapter_number = Column(String(25), nullable=True)
-    chapter_name = Column(String(200), nullable=True)
+    chapter_number = Column(String(400), nullable=True)
+    chapter_name = Column(Text, nullable=True)
     big_part_number = Column(String(25), nullable=True)
     big_part_name = Column(String(200), nullable=True)
-    part_number = Column(String(25), nullable=True)
-    part_name = Column(String(200), nullable=True)
+    part_number = Column(String(400), nullable=True)
+    part_name = Column(String(1000), nullable=True)
     mini_part_number = Column(String(25), nullable=True)
     mini_part_name = Column(String(200), nullable=True)
 

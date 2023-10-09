@@ -29,6 +29,7 @@ class AnleService:
     def get_headers(cls) -> Dict:
         return {'Content-Type': 'application/json'}
 
+    # basic url call to use in later functions
     @classmethod
     async def call(cls, method: str, url_path: str, query_params=None, json_data=None, timeout=90):
         url = cls._api_base_url + url_path
@@ -70,6 +71,7 @@ class AnleService:
                 anle_info_node = soup.find('div', {'id': 'thuoctinh'})
                 table_headers = anle_info_node.find_all('th')
 
+                # regex dict to automate information crawl
                 regex_dict = {
                     'serial_number': 'Số án lệ',
                     'title': 'Tên án lệ',
@@ -96,10 +98,12 @@ class AnleService:
                                 field_value = get_html_node_text(field_value_node)
                             setattr(input_anle, field, field_value)
 
+                # extract anle info based on regex dict
                 for header in table_headers:
                     for key in regex_dict.keys():
                         check_table_cell(key, header, anle)
 
+                # fetch doc/pdf files
                 pdf_nodes = soup.find_all('div', {'id': 'filetaive'})
                 pdf_links = []
                 for node in pdf_nodes:
@@ -115,6 +119,7 @@ class AnleService:
                     anle.org_pdf_link = ' '.join(pdf_links)
                     anle.file_link = ' '.join(file_links)
 
+                # add to db
                 with LocalSession.begin() as session:
                     session.add(anle)
 
@@ -150,6 +155,8 @@ class AnleService:
                     for attr in anle_attribute_list:
                         href = attr['href']
                         anle_id = href.split('=')[-1]
+
+                        # check for existing anle
                         with LocalSession.begin() as session:
                             statement = session.query(Anle).filter(Anle.doc_id == anle_id)
                             check_anle = session.execute(statement).all()
@@ -158,6 +165,7 @@ class AnleService:
                                 _logger.info(f"Progress: {progress}/{total_records}")
                                 continue
 
+                        # if it does not exist, add to db
                         new_anle = Anle(doc_id=anle_id)
                         await cls.crawl_anle_info(new_anle)
 
