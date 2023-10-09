@@ -119,9 +119,30 @@ class AnleService:
                     anle.org_pdf_link = ' '.join(pdf_links)
                     anle.file_link = ' '.join(file_links)
 
+                update_data = {
+                    'file_link': anle.file_link,
+                    'serial_number': anle.serial_number,
+                    'expiration_date': anle.expiration_date,
+                    'org_pdf_link': anle.org_pdf_link,
+                    'doc_id': anle.doc_id,
+                    'title': anle.title,
+                    'adoption_date': anle.adoption_date,
+                    'publication_date': anle.publication_date,
+                    'publication_decision': anle.publication_decision,
+                    'application_date': anle.application_date,
+                    'sector': anle.sector,
+                    'state': anle.state
+                }
+
                 # add to db
                 with LocalSession.begin() as session:
-                    session.add(anle)
+                    statement = session.query(Anle).filter(Anle.doc_id == anle.doc_id)
+                    check_anle = session.execute(statement).all()
+                    if len(check_anle) != 0:
+                        session.query(Anle).filter(Anle.doc_id == anle.doc_id).update(update_data)
+                        session.commit()
+                    else:
+                        session.add(anle)
 
                 for file_link in file_links:
                     file_id, anle_context, anle_solution, anle_content = cls.process_anle(file_link)
