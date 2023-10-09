@@ -139,6 +139,7 @@ class AnleService:
                     statement = session.query(Anle).filter(Anle.doc_id == anle.doc_id)
                     check_anle = session.execute(statement).all()
                     if len(check_anle) != 0:
+                        # upsert anle
                         session.query(Anle).filter(Anle.doc_id == anle.doc_id).update(update_data)
                         session.commit()
                     else:
@@ -262,6 +263,7 @@ class AnleService:
             target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
             check_anle = session.execute(target_anle).all()
             if len(check_anle) != 0:
+                # upsert anle_section
                 for anle in target_anle:
                     update_data = {
                         'context': anle_context,

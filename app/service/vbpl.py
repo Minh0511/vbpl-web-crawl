@@ -170,7 +170,9 @@ class VbplService:
 
                     # add to db
                     with LocalSession.begin() as session:
+                        check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
                         if check_vbpl is not None:
+                            # upsert vbpl
                             update_vbpl = {
                                 'file_link': new_vbpl.file_link,
                                 'title': new_vbpl.title,
@@ -602,6 +604,7 @@ class VbplService:
                             if check_related_doc is None:
                                 session.add(new_vbpl_related_doc)
                             else:
+                                # upsert vbpl_related_document
                                 update_data = {
                                     'doc_type': doc_type
                                 }
@@ -673,6 +676,7 @@ class VbplService:
                                 if check_doc_map is None:
                                     session.add(new_vbpl_doc_map)
                                 else:
+                                    # upsert doc_map for phap quy
                                     update_data = {
                                         'doc_map_type': doc_map_title
                                     }
@@ -704,6 +708,7 @@ class VbplService:
                             if check_doc_map is None:
                                 session.add(new_vbpl_doc_map)
                             else:
+                                # upsert doc_map for hop nhat
                                 update_data = {
                                     'doc_map_type': 'Văn bản được hợp nhất'
                                 }
