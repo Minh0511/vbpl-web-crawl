@@ -141,7 +141,6 @@ class AnleService:
                     if check_anle is not None:
                         # upsert anle
                         session.query(Anle).filter(Anle.doc_id == anle.doc_id).update(update_data)
-                        session.commit()
                     else:
                         session.add(anle)
 
@@ -271,7 +270,6 @@ class AnleService:
                         'content': anle_content,
                     }
                     session.query(AnleSection).filter(AnleSection.anle_id == anle.id).update(update_data)
-                    session.commit()
                 else:
                     new_anle_section = AnleSection(
                         anle_id=anle.id,

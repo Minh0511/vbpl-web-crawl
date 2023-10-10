@@ -31,7 +31,7 @@ find_id_regex = '(?<=ItemID=)\\d+'
 
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
-    _default_row_per_page = 130
+    _default_row_per_page = 10
     _max_threads = 8
     _find_big_part_regex = '^((Phần)|(Phần thứ)) (nhất|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)$'
     _find_section_regex = '^((Điều)|(Điều thứ)) \\d+'
@@ -93,7 +93,7 @@ class VbplService:
     @classmethod
     async def crawl_all_vbpl(cls, vbpl_type: VbplType):
         # total_doc = await cls.get_total_doc(vbpl_type)
-        total_pages = 1000
+        total_pages = 1
         full_id_list = []
 
         # crawl all vbpl info and full text using multi thread
@@ -191,21 +191,45 @@ class VbplService:
                                 'sector': new_vbpl.sector,
                             }
                             session.query(Vbpl).filter(Vbpl.id == doc_id).update(update_vbpl)
-                            session.commit()
                         else:
                             session.add(new_vbpl)
-                            if vbpl_fulltext is not None:
-                                for fulltext_section in vbpl_fulltext:
-                                    check_fulltext = session.query(VbplToanVan).filter(
+
+                        if vbpl_fulltext is not None:
+                            for fulltext_section in vbpl_fulltext:
+                                check_fulltext = session.query(VbplToanVan).filter(
+                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                    VbplToanVan.section_number == fulltext_section.section_number).first()
+                                if check_fulltext is None:
+                                    session.add(fulltext_section)
+                                else:
+                                    # upsert toan van
+                                    updated_toan_van = {
+                                        'section_name': fulltext_section.section_name,
+                                        'section_content': fulltext_section.section_content,
+                                        'chapter_number': fulltext_section.chapter_number,
+                                        'chapter_name': fulltext_section.chapter_name,
+                                        'part_number': fulltext_section.part_number,
+                                        'part_name': fulltext_section.part_name,
+                                        'mini_part_number': fulltext_section.mini_part_number,
+                                        'mini_part_name': fulltext_section.mini_part_name,
+                                        'big_part_number': fulltext_section.big_part_number,
+                                        'big_part_name': fulltext_section.big_part_name,
+                                    }
+                                    session.query(VbplToanVan).filter(
                                         VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                        VbplToanVan.section_number == fulltext_section.section_number).first()
-                                    if check_fulltext is None:
-                                        session.add(fulltext_section)
-                            if vbpl_sub_part is not None:
-                                check_sub_part = session.query(VbplSubPart).filter(
-                                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
-                                if check_sub_part is None:
-                                    session.add(vbpl_sub_part)
+                                        VbplToanVan.section_number == fulltext_section.section_number).update(updated_toan_van)
+                        if vbpl_sub_part is not None:
+                            check_sub_part = session.query(VbplSubPart).filter(
+                                VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
+                            if check_sub_part is None:
+                                session.add(vbpl_sub_part)
+                            else:
+                                # upsert sub parts
+                                updated_sub_part = {
+                                    'sub_parts': vbpl_sub_part.sub_parts
+                                }
+                                session.query(VbplSubPart).filter(
+                                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).update(updated_sub_part)
 
                     # update progress
                     progress += 1
@@ -612,7 +636,6 @@ class VbplService:
                                     VbplRelatedDocument.source_id == new_vbpl_related_doc.source_id,
                                     VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).update(
                                     update_data)
-                                session.commit()
 
             sleep(1)
         except Exception as e:
@@ -683,7 +706,6 @@ class VbplService:
                                     session.query(VbplDocMap).filter(
                                         VbplDocMap.source_id == new_vbpl_doc_map.source_id,
                                         VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).update(update_data)
-                                    session.commit()
 
                 elif vbpl_type == VbplType.HOP_NHAT:
                     doc_map_nodes = soup.find_all('div', {'class': 'w'})
@@ -715,7 +737,6 @@ class VbplService:
                                 session.query(VbplDocMap).filter(
                                     VbplDocMap.source_id == new_vbpl_doc_map.source_id,
                                     VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).update(update_data)
-                                session.commit()
             sleep(1)
         except Exception as e:
             _logger.exception(f'Crawl vbpl doc map {vbpl_id} {e}')
