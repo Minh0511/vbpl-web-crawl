@@ -138,7 +138,7 @@ class AnleService:
                 with LocalSession.begin() as session:
                     statement = session.query(Anle).filter(Anle.doc_id == anle.doc_id)
                     check_anle = session.execute(statement).first()
-                    if len(check_anle) != 0:
+                    if check_anle is not None:
                         # upsert anle
                         session.query(Anle).filter(Anle.doc_id == anle.doc_id).update(update_data)
                         session.commit()
@@ -262,7 +262,7 @@ class AnleService:
         with LocalSession.begin() as session:
             target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
             check_anle = session.execute(target_anle).first()
-            if len(check_anle) != 0:
+            if check_anle is not None:
                 # upsert anle_section
                 for anle in target_anle:
                     update_data = {
