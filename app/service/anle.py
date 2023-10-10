@@ -137,7 +137,7 @@ class AnleService:
                 # add to db
                 with LocalSession.begin() as session:
                     statement = session.query(Anle).filter(Anle.doc_id == anle.doc_id)
-                    check_anle = session.execute(statement).all()
+                    check_anle = session.execute(statement).first()
                     if len(check_anle) != 0:
                         # upsert anle
                         session.query(Anle).filter(Anle.doc_id == anle.doc_id).update(update_data)
@@ -261,7 +261,7 @@ class AnleService:
     def to_anle_section_db(cls, file_id: str, anle_context: str, anle_solution: str, anle_content: str):
         with LocalSession.begin() as session:
             target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
-            check_anle = session.execute(target_anle).all()
+            check_anle = session.execute(target_anle).first()
             if len(check_anle) != 0:
                 # upsert anle_section
                 for anle in target_anle:
