@@ -119,9 +119,31 @@ class AnleService:
                     anle.org_pdf_link = ' '.join(pdf_links)
                     anle.file_link = ' '.join(file_links)
 
+                update_data = {
+                    'file_link': anle.file_link,
+                    'serial_number': anle.serial_number,
+                    'expiration_date': anle.expiration_date,
+                    'org_pdf_link': anle.org_pdf_link,
+                    'doc_id': anle.doc_id,
+                    'title': anle.title,
+                    'adoption_date': anle.adoption_date,
+                    'publication_date': anle.publication_date,
+                    'publication_decision': anle.publication_decision,
+                    'application_date': anle.application_date,
+                    'sector': anle.sector,
+                    'state': anle.state
+                }
+
                 # add to db
                 with LocalSession.begin() as session:
-                    session.add(anle)
+                    statement = session.query(Anle).filter(Anle.doc_id == anle.doc_id)
+                    check_anle = session.execute(statement).first()
+                    if check_anle is not None:
+                        # upsert anle
+                        session.query(Anle).filter(Anle.doc_id == anle.doc_id).update(update_data)
+                        session.commit()
+                    else:
+                        session.add(anle)
 
                 for file_link in file_links:
                     file_id, anle_context, anle_solution, anle_content = cls.process_anle(file_link)
@@ -155,17 +177,6 @@ class AnleService:
                     for attr in anle_attribute_list:
                         href = attr['href']
                         anle_id = href.split('=')[-1]
-
-                        # check for existing anle
-                        with LocalSession.begin() as session:
-                            statement = session.query(Anle).filter(Anle.doc_id == anle_id)
-                            check_anle = session.execute(statement).all()
-                            if len(check_anle) != 0:
-                                progress += 1
-                                _logger.info(f"Progress: {progress}/{total_records}")
-                                continue
-
-                        # if it does not exist, add to db
                         new_anle = Anle(doc_id=anle_id)
                         await cls.crawl_anle_info(new_anle)
 
@@ -249,15 +260,26 @@ class AnleService:
     @classmethod
     def to_anle_section_db(cls, file_id: str, anle_context: str, anle_solution: str, anle_content: str):
         with LocalSession.begin() as session:
-            target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
+            target_anle = session.query(Anle).filter(Anle.doc_id == file_id).all()
             for anle in target_anle:
-                new_anle_section = AnleSection(
-                    anle_id=anle.id,
-                    context=anle_context,
-                    solution=anle_solution,
-                    content=anle_content,
-                )
-                session.add(new_anle_section)
+                check_anle_section = session.query(AnleSection).filter(AnleSection.anle_id == anle.id).first()
+                if check_anle_section:
+                    # upsert anle section
+                    update_data = {
+                        'context': anle_context,
+                        'solution': anle_solution,
+                        'content': anle_content,
+                    }
+                    session.query(AnleSection).filter(AnleSection.anle_id == anle.id).update(update_data)
+                    session.commit()
+                else:
+                    new_anle_section = AnleSection(
+                        anle_id=anle.id,
+                        context=anle_context,
+                        solution=anle_solution,
+                        content=anle_content,
+                    )
+                    session.add(new_anle_section)
 
     @classmethod
     async def fetch_anle_by_id(cls, anle_id):

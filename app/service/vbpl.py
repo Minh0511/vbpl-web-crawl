@@ -145,11 +145,6 @@ class VbplService:
                     # check for existing vbpl
                     with LocalSession.begin() as session:
                         check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
-                        if check_vbpl is not None:
-                            progress += 1
-                            _logger.info(f'Finished crawling vbpl {doc_id}')
-                            _logger.info(f"Page {page} progress: {progress}/{max_progress}")
-                            continue
 
                     # if it does not exist, add to db
                     new_vbpl = Vbpl(
@@ -175,19 +170,42 @@ class VbplService:
 
                     # add to db
                     with LocalSession.begin() as session:
-                        session.add(new_vbpl)
-                        if vbpl_fulltext is not None:
-                            for fulltext_section in vbpl_fulltext:
-                                check_fulltext = session.query(VbplToanVan).filter(
-                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                    VbplToanVan.section_number == fulltext_section.section_number).first()
-                                if check_fulltext is None:
-                                    session.add(fulltext_section)
-                        if vbpl_sub_part is not None:
-                            check_sub_part = session.query(VbplSubPart).filter(
-                                VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
-                            if check_sub_part is None:
-                                session.add(vbpl_sub_part)
+                        check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
+                        if check_vbpl is not None:
+                            # upsert vbpl
+                            update_vbpl = {
+                                'file_link': new_vbpl.file_link,
+                                'title': new_vbpl.title,
+                                'doc_type': new_vbpl.doc_type,
+                                'serial_number': new_vbpl.serial_number,
+                                'issuance_date': new_vbpl.issuance_date,
+                                'effective_date': new_vbpl.effective_date,
+                                'expiration_date': new_vbpl.expiration_date,
+                                'gazette_date': new_vbpl.gazette_date,
+                                'state': new_vbpl.state,
+                                'issuing_authority': new_vbpl.issuing_authority,
+                                'applicable_information': new_vbpl.applicable_information,
+                                'html': new_vbpl.html,
+                                'org_pdf_link': new_vbpl.org_pdf_link,
+                                'sub_title': new_vbpl.sub_title,
+                                'sector': new_vbpl.sector,
+                            }
+                            session.query(Vbpl).filter(Vbpl.id == doc_id).update(update_vbpl)
+                            session.commit()
+                        else:
+                            session.add(new_vbpl)
+                            if vbpl_fulltext is not None:
+                                for fulltext_section in vbpl_fulltext:
+                                    check_fulltext = session.query(VbplToanVan).filter(
+                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                                        VbplToanVan.section_number == fulltext_section.section_number).first()
+                                    if check_fulltext is None:
+                                        session.add(fulltext_section)
+                            if vbpl_sub_part is not None:
+                                check_sub_part = session.query(VbplSubPart).filter(
+                                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
+                                if check_sub_part is None:
+                                    session.add(vbpl_sub_part)
 
                     # update progress
                     progress += 1
@@ -585,6 +603,17 @@ class VbplService:
                                 VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).first()
                             if check_related_doc is None:
                                 session.add(new_vbpl_related_doc)
+                            else:
+                                # upsert vbpl_related_document
+                                update_data = {
+                                    'doc_type': doc_type
+                                }
+                                session.query(VbplRelatedDocument).filter(
+                                    VbplRelatedDocument.source_id == new_vbpl_related_doc.source_id,
+                                    VbplRelatedDocument.related_id == new_vbpl_related_doc.related_id).update(
+                                    update_data)
+                                session.commit()
+
             sleep(1)
         except Exception as e:
             _logger.exception(f'Crawl vbpl related doc {vbpl_id} {e}')
@@ -646,6 +675,15 @@ class VbplService:
                                     VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).first()
                                 if check_doc_map is None:
                                     session.add(new_vbpl_doc_map)
+                                else:
+                                    # upsert doc_map for phap quy
+                                    update_data = {
+                                        'doc_map_type': doc_map_title
+                                    }
+                                    session.query(VbplDocMap).filter(
+                                        VbplDocMap.source_id == new_vbpl_doc_map.source_id,
+                                        VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).update(update_data)
+                                    session.commit()
 
                 elif vbpl_type == VbplType.HOP_NHAT:
                     doc_map_nodes = soup.find_all('div', {'class': 'w'})
@@ -664,7 +702,20 @@ class VbplService:
                             doc_map_type='Văn bản được hợp nhất'
                         )
                         with LocalSession.begin() as session:
-                            session.add(new_vbpl_doc_map)
+                            check_doc_map = session.query(VbplDocMap).filter(
+                                VbplDocMap.source_id == new_vbpl_doc_map.source_id,
+                                VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).first()
+                            if check_doc_map is None:
+                                session.add(new_vbpl_doc_map)
+                            else:
+                                # upsert doc_map for hop nhat
+                                update_data = {
+                                    'doc_map_type': 'Văn bản được hợp nhất'
+                                }
+                                session.query(VbplDocMap).filter(
+                                    VbplDocMap.source_id == new_vbpl_doc_map.source_id,
+                                    VbplDocMap.doc_map_id == new_vbpl_doc_map.doc_map_id).update(update_data)
+                                session.commit()
             sleep(1)
         except Exception as e:
             _logger.exception(f'Crawl vbpl doc map {vbpl_id} {e}')
