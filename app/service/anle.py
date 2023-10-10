@@ -260,11 +260,11 @@ class AnleService:
     @classmethod
     def to_anle_section_db(cls, file_id: str, anle_context: str, anle_solution: str, anle_content: str):
         with LocalSession.begin() as session:
-            target_anle = session.query(Anle).filter(Anle.doc_id == file_id)
-            check_anle = session.execute(target_anle).first()
-            if check_anle is not None:
-                # upsert anle_section
-                for anle in target_anle:
+            target_anle = session.query(Anle).filter(Anle.doc_id == file_id).all()
+            for anle in target_anle:
+                check_anle_section = session.query(AnleSection).filter(AnleSection.anle_id == anle.id).first()
+                if check_anle_section:
+                    # upsert anle section
                     update_data = {
                         'context': anle_context,
                         'solution': anle_solution,
@@ -272,8 +272,7 @@ class AnleService:
                     }
                     session.query(AnleSection).filter(AnleSection.anle_id == anle.id).update(update_data)
                     session.commit()
-            else:
-                for anle in target_anle:
+                else:
                     new_anle_section = AnleSection(
                         anle_id=anle.id,
                         context=anle_context,
@@ -281,7 +280,6 @@ class AnleService:
                         content=anle_content,
                     )
                     session.add(new_anle_section)
-
 
     @classmethod
     async def fetch_anle_by_id(cls, anle_id):
