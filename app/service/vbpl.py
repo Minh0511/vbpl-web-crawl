@@ -169,67 +169,7 @@ class VbplService:
                         vbpl_fulltext, vbpl_sub_part = await cls.additional_html_crawl(new_vbpl)
 
                     # add to db
-                    with LocalSession.begin() as session:
-                        check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
-                        if check_vbpl is not None:
-                            # upsert vbpl
-                            update_vbpl = {
-                                'file_link': new_vbpl.file_link,
-                                'title': new_vbpl.title,
-                                'doc_type': new_vbpl.doc_type,
-                                'serial_number': new_vbpl.serial_number,
-                                'issuance_date': new_vbpl.issuance_date,
-                                'effective_date': new_vbpl.effective_date,
-                                'expiration_date': new_vbpl.expiration_date,
-                                'gazette_date': new_vbpl.gazette_date,
-                                'state': new_vbpl.state,
-                                'issuing_authority': new_vbpl.issuing_authority,
-                                'applicable_information': new_vbpl.applicable_information,
-                                'html': new_vbpl.html,
-                                'org_pdf_link': new_vbpl.org_pdf_link,
-                                'sub_title': new_vbpl.sub_title,
-                                'sector': new_vbpl.sector,
-                            }
-                            session.query(Vbpl).filter(Vbpl.id == doc_id).update(update_vbpl)
-                        else:
-                            session.add(new_vbpl)
-
-                        if vbpl_fulltext is not None:
-                            for fulltext_section in vbpl_fulltext:
-                                check_fulltext = session.query(VbplToanVan).filter(
-                                    VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                    VbplToanVan.section_number == fulltext_section.section_number).first()
-                                if check_fulltext is None:
-                                    session.add(fulltext_section)
-                                else:
-                                    # upsert toan van
-                                    updated_toan_van = {
-                                        'section_name': fulltext_section.section_name,
-                                        'section_content': fulltext_section.section_content,
-                                        'chapter_number': fulltext_section.chapter_number,
-                                        'chapter_name': fulltext_section.chapter_name,
-                                        'part_number': fulltext_section.part_number,
-                                        'part_name': fulltext_section.part_name,
-                                        'mini_part_number': fulltext_section.mini_part_number,
-                                        'mini_part_name': fulltext_section.mini_part_name,
-                                        'big_part_number': fulltext_section.big_part_number,
-                                        'big_part_name': fulltext_section.big_part_name,
-                                    }
-                                    session.query(VbplToanVan).filter(
-                                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
-                                        VbplToanVan.section_number == fulltext_section.section_number).update(updated_toan_van)
-                        if vbpl_sub_part is not None:
-                            check_sub_part = session.query(VbplSubPart).filter(
-                                VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
-                            if check_sub_part is None:
-                                session.add(vbpl_sub_part)
-                            else:
-                                # upsert sub parts
-                                updated_sub_part = {
-                                    'sub_parts': vbpl_sub_part.sub_parts
-                                }
-                                session.query(VbplSubPart).filter(
-                                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).update(updated_sub_part)
+                    await cls.push_vbpl_to_db(doc_id, new_vbpl, vbpl_fulltext, vbpl_sub_part)
 
                     # update progress
                     progress += 1
@@ -239,6 +179,70 @@ class VbplService:
         except Exception as e:
             _logger.exception(f'Crawl all doc in page {page} {e}')
             raise CommonException(500, 'Crawl all doc')
+
+    @classmethod
+    async def push_vbpl_to_db(cls, doc_id, new_vbpl, vbpl_fulltext, vbpl_sub_part):
+        with LocalSession.begin() as session:
+            check_vbpl = session.query(Vbpl).filter(Vbpl.id == doc_id).first()
+            if check_vbpl is not None:
+                # upsert vbpl
+                update_vbpl = {
+                    'file_link': new_vbpl.file_link,
+                    'title': new_vbpl.title,
+                    'doc_type': new_vbpl.doc_type,
+                    'serial_number': new_vbpl.serial_number,
+                    'issuance_date': new_vbpl.issuance_date,
+                    'effective_date': new_vbpl.effective_date,
+                    'expiration_date': new_vbpl.expiration_date,
+                    'gazette_date': new_vbpl.gazette_date,
+                    'state': new_vbpl.state,
+                    'issuing_authority': new_vbpl.issuing_authority,
+                    'applicable_information': new_vbpl.applicable_information,
+                    'html': new_vbpl.html,
+                    'org_pdf_link': new_vbpl.org_pdf_link,
+                    'sub_title': new_vbpl.sub_title,
+                    'sector': new_vbpl.sector,
+                }
+                session.query(Vbpl).filter(Vbpl.id == doc_id).update(update_vbpl)
+            else:
+                session.add(new_vbpl)
+
+            if vbpl_fulltext is not None:
+                for fulltext_section in vbpl_fulltext:
+                    check_fulltext = session.query(VbplToanVan).filter(
+                        VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                        VbplToanVan.section_number == fulltext_section.section_number).first()
+                    if check_fulltext is None:
+                        session.add(fulltext_section)
+                    else:
+                        # upsert toan van
+                        updated_toan_van = {
+                            'section_name': fulltext_section.section_name,
+                            'section_content': fulltext_section.section_content,
+                            'chapter_number': fulltext_section.chapter_number,
+                            'chapter_name': fulltext_section.chapter_name,
+                            'part_number': fulltext_section.part_number,
+                            'part_name': fulltext_section.part_name,
+                            'mini_part_number': fulltext_section.mini_part_number,
+                            'mini_part_name': fulltext_section.mini_part_name,
+                            'big_part_number': fulltext_section.big_part_number,
+                            'big_part_name': fulltext_section.big_part_name,
+                        }
+                        session.query(VbplToanVan).filter(
+                            VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
+                            VbplToanVan.section_number == fulltext_section.section_number).update(updated_toan_van)
+            if vbpl_sub_part is not None:
+                check_sub_part = session.query(VbplSubPart).filter(
+                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
+                if check_sub_part is None:
+                    session.add(vbpl_sub_part)
+                else:
+                    # upsert sub parts
+                    updated_sub_part = {
+                        'sub_parts': vbpl_sub_part.sub_parts
+                    }
+                    session.query(VbplSubPart).filter(
+                        VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).update(updated_sub_part)
 
     @classmethod
     def update_vbpl_phapquy_fulltext(cls, line, fulltext_obj: VbplFullTextField):
@@ -1006,19 +1010,17 @@ class VbplService:
         )
         if vbpl_type == VbplType.HOP_NHAT:
             await cls.crawl_vbpl_hopnhat_info(new_vbpl)
-            await cls.search_concetti(new_vbpl)
+            await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
             await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
-            with LocalSession.begin() as session:
-                session.add(new_vbpl)
+            await cls.search_concetti(new_vbpl)
+            vbpl_fulltext, vbpl_sub_part = await cls.additional_html_crawl(new_vbpl)
         else:
             await cls.crawl_vbpl_phapquy_info(new_vbpl)
+            await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
+            vbpl_fulltext, vbpl_sub_part = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
             await cls.search_concetti(new_vbpl)
-            vbpl_fulltext = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
-            with LocalSession.begin() as session:
-                session.add(new_vbpl)
-                if vbpl_fulltext is not None:
-                    for fulltext_record in vbpl_fulltext:
-                        session.add(fulltext_record)
+
+        await cls.push_vbpl_to_db(vbpl_id, new_vbpl, vbpl_fulltext, vbpl_sub_part)
 
     @classmethod
     async def fetch_vbpl_by_id(cls, vbpl_id):
