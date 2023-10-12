@@ -31,7 +31,7 @@ find_id_regex = '(?<=ItemID=)\\d+'
 
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
-    _default_row_per_page = 10
+    _default_row_per_page = 130
     _max_threads = 8
     _find_big_part_regex = '^((Phần)|(Phần thứ)) (nhất|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)$'
     _find_section_regex = '^((Điều)|(Điều thứ)) \\d+'
@@ -93,7 +93,7 @@ class VbplService:
     @classmethod
     async def crawl_all_vbpl(cls, vbpl_type: VbplType):
         # total_doc = await cls.get_total_doc(vbpl_type)
-        total_pages = 1
+        total_pages = 1000
         full_id_list = []
 
         # crawl all vbpl info and full text using multi thread
