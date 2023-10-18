@@ -17,6 +17,7 @@ class Setting(BaseSettings):
     CONCETTI_BASE_URL: str = os.getenv('CONCETTI_BASE_URL')
     TVPL_BASE_URL: str = os.getenv('TVPL_BASE_URL')
     CONG_BAO_BASE_URL: str = os.getenv('CONG_BAO_BASE_URL')
+    LUAT_VN_BASE_URL: str = os.getenv('LUAT_VN_BASE_URL')
 
 
 setting = Setting()

@@ -31,7 +31,7 @@ find_id_regex = '(?<=ItemID=)\\d+'
 
 class VbplService:
     _api_base_url = setting.VBPl_BASE_URL
-    _default_row_per_page = 130
+    _default_row_per_page = 10
     _max_threads = 8
     _find_big_part_regex = '^((Phần)|(Phần thứ)) (nhất|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)$'
     _find_section_regex = '^((Điều)|(Điều thứ)) \\d+'
@@ -45,6 +45,7 @@ class VbplService:
     _concetti_base_url = setting.CONCETTI_BASE_URL
     _tvpl_base_url = setting.TVPL_BASE_URL
     _cong_bao_base_url = setting.CONG_BAO_BASE_URL
+    _luat_vn_base_url = setting.LUAT_VN_BASE_URL
 
     @classmethod
     def get_headers(cls) -> Dict:
@@ -93,7 +94,7 @@ class VbplService:
     @classmethod
     async def crawl_all_vbpl(cls, vbpl_type: VbplType):
         # total_doc = await cls.get_total_doc(vbpl_type)
-        total_pages = 1000
+        total_pages = 1
         full_id_list = []
 
         # crawl all vbpl info and full text using multi thread
@@ -835,12 +836,13 @@ class VbplService:
                                                 vbpl.state = 'Có hiệu lực'
 
                                 # get vbpl sector
-                                branches = item['branches']
-                                branches_names = []
-                                for branch in branches:
-                                    branches_names.append(branch['name'])
-                                if len(branches_names) > 0:
-                                    vbpl.sector = ' - '.join(branches_names)
+                                with LocalSession.begin() as session:
+                                    # avoid upsert into 'Lĩnh vực khác' for the already specific sector
+                                    await cls.get_vbpl_sector(vbpl.serial_number, vbpl)
+                                    check_sector = session.query(Vbpl).filter(Vbpl.id == vbpl.id).first()
+                                    if check_sector is not None:
+                                        if check_sector.sector != 'Lĩnh vực khác' and vbpl.sector is None:
+                                            vbpl.sector = check_sector.sector
 
                                 # fetch pdf if needed
                                 if vbpl.org_pdf_link is None or vbpl.org_pdf_link.strip() == '':
@@ -1127,3 +1129,62 @@ class VbplService:
         with py7zr.SevenZipFile(output_rar_filepath, 'w') as archive:
             for file_link in file_links:
                 archive.write(file_link)
+
+    @classmethod
+    async def get_vbpl_sector(cls, serial_number, vbpl: Vbpl):
+        query_params = {
+            'Keywords': serial_number,
+            'SearchOptions': 3,
+            'SearchExact': 1
+        }
+
+        search_url = 'tim-van-ban.html'
+        vbpl_sectors = []
+
+        try:
+            async with aiohttp.ClientSession(trust_env=True) as session:
+                async with session.request('GET',
+                                           f'{cls._luat_vn_base_url + search_url}',
+                                           params=query_params,
+                                           headers=cls.get_headers()
+                                           ) as resp:
+                    await resp.text()
+        except Exception as e:
+            _logger.exception(f'Search vbpl on luatvietnam with url {search_url}')
+            raise CommonException(500, 'Crawl vbpl sector from luatvietnam')
+
+        if resp.status == HTTPStatus.OK:
+            soup = BeautifulSoup(await resp.text(), 'lxml')
+            search_results = soup.find_all('h2', {'class': 'doc-title'})
+            result_url = search_results[0].find('a').get('href')
+            try:
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    async with session.request('GET',
+                                               f'{cls._luat_vn_base_url + result_url}',
+                                               params=query_params,
+                                               headers=cls.get_headers()
+                                               ) as vbpl_resp:
+                        await vbpl_resp.text()
+            except Exception as e:
+                _logger.exception(f'Get vbpl info on luatvietnam with url {result_url}')
+                raise CommonException(500, 'Crawl vbpl sector from luatvietnam')
+
+            if vbpl_resp.status == HTTPStatus.OK:
+                vbpl_soup = BeautifulSoup(await vbpl_resp.text(), 'lxml')
+                summary = vbpl_soup.find('div', {'id': 'tomtat'})
+                if summary is not None:
+                    table_rows = summary.find_all('tr')
+                    for row in table_rows:
+                        sector_row = row.find('td', text="Lĩnh vực:")
+                        if sector_row is None:
+                            continue
+                        all_sector_info = row.find_all('a')
+                        for sector in all_sector_info:
+                            vbpl_sector = sector.get('title')
+                            # the sector above will be "Lĩnh vực: something", we need to remove "Lĩnh vực: "
+                            colon_index = vbpl_sector.find(':')
+                            if colon_index != -1:
+                                # Extract the text after ':', removing any leading or trailing spaces
+                                vbpl_sectors.append(vbpl_sector[colon_index + 1:].strip())
+
+                        vbpl.sector = ' - '.join(vbpl_sectors)
