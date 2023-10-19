@@ -1156,7 +1156,17 @@ class VbplService:
         if resp.status == HTTPStatus.OK:
             soup = BeautifulSoup(await resp.text(), 'lxml')
             search_results = soup.find_all('h2', {'class': 'doc-title'})
-            result_url = search_results[0].find('a').get('href')
+            result_url = ''
+            # check if the searched doc is in the search result
+            for search_result in search_results:
+                title = search_result.find('a').get('title')
+                if serial_number in title:
+                    print("title", title)
+                    result_url = search_result.find('a').get('href')
+                    break
+            # if not found, then stop the function
+            if result_url == '':
+                return
             try:
                 async with aiohttp.ClientSession(trust_env=True) as session:
                     async with session.request('GET',
