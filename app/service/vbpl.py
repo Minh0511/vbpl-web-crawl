@@ -810,6 +810,15 @@ class VbplService:
                         if len(result_items) == 0:
                             continue
 
+                        # get vbpl sector
+                        with LocalSession.begin() as session:
+                            # avoid upsert into 'Lĩnh vực khác' for the already specific sector
+                            await cls.get_vbpl_sector(vbpl.serial_number, vbpl.sub_title, vbpl)
+                            check_sector = session.query(Vbpl).filter(Vbpl.id == vbpl.id).first()
+                            if check_sector is not None:
+                                if check_sector.sector != 'Lĩnh vực khác' and vbpl.sector is None:
+                                    vbpl.sector = check_sector.sector
+
                         for item in result_items:
                             # if the search result is similar to the source vbpl
                             if (Levenshtein.ratio(search_key, item['name']) >= threshold
@@ -834,15 +843,6 @@ class VbplService:
                                                 vbpl.state = 'Hết hiệu lực'
                                             else:
                                                 vbpl.state = 'Có hiệu lực'
-
-                                # get vbpl sector
-                                with LocalSession.begin() as session:
-                                    # avoid upsert into 'Lĩnh vực khác' for the already specific sector
-                                    await cls.get_vbpl_sector(vbpl.serial_number, vbpl)
-                                    check_sector = session.query(Vbpl).filter(Vbpl.id == vbpl.id).first()
-                                    if check_sector is not None:
-                                        if check_sector.sector != 'Lĩnh vực khác' and vbpl.sector is None:
-                                            vbpl.sector = check_sector.sector
 
                                 # fetch pdf if needed
                                 if vbpl.org_pdf_link is None or vbpl.org_pdf_link.strip() == '':
@@ -1131,12 +1131,19 @@ class VbplService:
                 archive.write(file_link)
 
     @classmethod
-    async def get_vbpl_sector(cls, serial_number, vbpl: Vbpl):
-        query_params = {
-            'Keywords': serial_number,
-            'SearchOptions': 3,
-            'SearchExact': 1
-        }
+    async def get_vbpl_sector(cls, serial_number, sub_title, vbpl: Vbpl):
+        if serial_number == 'Không số':
+            query_params = {
+                'Keywords': sub_title,
+                'SearchOptions': 1,
+                'SearchExact': 1
+            }
+        else:
+            query_params = {
+                'Keywords': serial_number,
+                'SearchOptions': 3,
+                'SearchExact': 1
+            }
 
         search_url = 'tim-van-ban.html'
         vbpl_sectors = []
@@ -1160,8 +1167,7 @@ class VbplService:
             # check if the searched doc is in the search result
             for search_result in search_results:
                 title = search_result.find('a').get('title')
-                if serial_number in title:
-                    print("title", title)
+                if serial_number in title or sub_title in title:
                     result_url = search_result.find('a').get('href')
                     break
             # if not found, then stop the function
