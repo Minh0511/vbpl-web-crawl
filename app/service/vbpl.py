@@ -18,7 +18,7 @@ from app.model.vbpl import VbplSubPart
 from app.service.get_pdf import get_document
 from setting import setting
 from app.helper.utility import convert_dict_to_pascal, get_html_node_text, convert_datetime_to_str, \
-    concetti_query_params_url_encode, convert_str_to_datetime
+    concetti_query_params_url_encode, convert_str_to_datetime, check_header_tag
 from app.helper.db import LocalSession
 from urllib.parse import quote
 import Levenshtein
@@ -232,17 +232,21 @@ class VbplService:
                             VbplToanVan.vbpl_id == fulltext_section.vbpl_id,
                             VbplToanVan.section_number == fulltext_section.section_number).update(updated_toan_van)
             if vbpl_sub_part is not None:
-                check_sub_part = session.query(VbplSubPart).filter(
-                    VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).first()
-                if check_sub_part is None:
-                    session.add(vbpl_sub_part)
-                else:
-                    # upsert sub parts
-                    updated_sub_part = {
-                        'sub_parts': vbpl_sub_part.sub_parts
-                    }
-                    session.query(VbplSubPart).filter(
-                        VbplSubPart.vbpl_id == vbpl_sub_part.vbpl_id).update(updated_sub_part)
+                for sub_part in vbpl_sub_part:
+                    check_sub_part = session.query(VbplSubPart).filter(
+                        VbplSubPart.vbpl_id == sub_part.vbpl_id,
+                        VbplSubPart.sub_section_part_number == sub_part.sub_section_part_number).first()
+                    if check_sub_part is None:
+                        session.add(sub_part)
+                    else:
+                        # upsert sub parts
+                        updated_sub_part = {
+                            'sub_section_title': sub_part.sub_section_title,
+                            'sub_section_part_title': sub_part.sub_section_part_title
+                        }
+                        session.query(VbplSubPart).filter(
+                            VbplSubPart.vbpl_id == sub_part.vbpl_id,
+                            VbplSubPart.sub_section_part_number == sub_part.sub_section_part_number).update(updated_sub_part)
 
     @classmethod
     def update_vbpl_phapquy_fulltext(cls, line, fulltext_obj: VbplFullTextField):
@@ -290,6 +294,9 @@ class VbplService:
 
         # init vbpl fulltext object
         for line in lines:
+            # if line.name not in ['p', 'div'] or not check_header_tag(line.name):
+            #     continue
+
             line_content = get_html_node_text(line)
             if re.search(cls._find_section_regex, line_content):
                 break
@@ -300,6 +307,9 @@ class VbplService:
 
         # process fulltext line by line
         for line_index, line in enumerate(lines):
+            # if line.name not in ['p', 'div'] or not check_header_tag(line.name):
+            #     continue
+
             line_content = get_html_node_text(line)
 
             if re.search(cls._find_start_sub_part_regex, line_content):
@@ -366,18 +376,62 @@ class VbplService:
 
     @classmethod
     def process_vbpl_sub_part(cls, vbpl_id, sub_part_lines):
-        sub_parts = []
-        for line in sub_part_lines:
-            line_content = get_html_node_text(line)
-            if re.search(cls._find_sub_part_regex, line_content):
-                current_sub_part = re.findall('(?<=lục ).+', line_content)[0]
-                sub_parts.append(current_sub_part)
+        sub_section_title = get_html_node_text(sub_part_lines[1])
+        vbpl_sub_parts = []
 
-        new_vbpl_sub_part = VbplSubPart(
-            vbpl_id=vbpl_id,
-            sub_parts=' '.join(sub_parts)
-        )
-        return new_vbpl_sub_part
+        regex_dict = {
+            '^Phụ(\\s)*(\\n)*lục [IVX]+': '(?<=lục )[IVX]+',
+            '^Phụ(\\s)*(\\n)*lục \\d+': '(?<=lục )\\d+',
+            # '^\\d+\\.': '^\\d+(?=\\.)',
+            # '^\\d+-': '^\\d+(?=-)'
+        }
+        is_sub_section_part_title = False
+
+        for i in range(2, len(sub_part_lines)):
+            if is_sub_section_part_title:
+                is_sub_section_part_title = False
+                continue
+
+            line = sub_part_lines[i]
+            # if line.name not in ['p', 'div'] or not check_header_tag(line.name):
+            #     continue
+
+            line_content = get_html_node_text(line)
+
+            for check_regex in regex_dict.keys():
+                if re.search(check_regex, line_content):
+                    extract_regex = regex_dict[check_regex]
+                    current_sub_part_reg = re.search(extract_regex, line_content)
+
+                    # get sub part number
+                    current_sub_part = line_content[current_sub_part_reg.span()[0]:current_sub_part_reg.span()[1]]
+                    # skip if sub part number is not numeral or roman numeral
+                    if not re.search('^[IVX]+$', current_sub_part) and not re.search('^\\d+$', current_sub_part):
+                        continue
+
+                    current_sub_part_title = line_content[current_sub_part_reg.span()[1]:].strip()
+                    # if the sub part title is not right beside the sub part number, it is below it
+                    if current_sub_part_title == '':
+                        current_sub_part_title_node = sub_part_lines[i + 1]
+                        current_sub_part_title = get_html_node_text(current_sub_part_title_node)
+                        is_sub_section_part_title = True
+
+                    new_vbpl_sub_part = VbplSubPart(
+                        vbpl_id=vbpl_id,
+                        sub_section_title=sub_section_title,
+                        sub_section_part_number=current_sub_part,
+                        sub_section_part_title=current_sub_part_title
+                    )
+                    vbpl_sub_parts.append(new_vbpl_sub_part)
+                    break
+        if len(vbpl_sub_parts) == 0:
+            vbpl_sub_parts.append(VbplSubPart(
+                vbpl_id=vbpl_id,
+                sub_section_title=sub_section_title,
+                sub_section_part_number='0',
+                sub_section_part_title=None
+            ))
+        return vbpl_sub_parts
 
     @classmethod
     async def crawl_vbpl_phapquy_fulltext(cls, vbpl: Vbpl):

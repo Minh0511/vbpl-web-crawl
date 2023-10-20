@@ -149,7 +149,9 @@ class VbplSubPart(Base):
     __tablename__ = 'vbpl_sub_part'
 
     vbpl_id = Column(Integer, ForeignKey('vbpl.id'), primary_key=True, nullable=False)
-    sub_parts = Column(String(100), nullable=False)
+    sub_section_title = Column(String(1000), nullable=False)
+    sub_section_part_number = Column(String(10), primary_key=True, nullable=False)
+    sub_section_part_title = Column(Text, nullable=True)
 
     # relationship
     vbpl = relationship("Vbpl", foreign_keys='VbplSubPart.vbpl_id',
@@ -159,4 +161,6 @@ class VbplSubPart(Base):
 
     def __str__(self):
         return (f'Vbpl: {self.vbpl_id},\n'
-                f'Sub parts: {self.sub_parts}')
+                f'Sub section title: {self.sub_section_title},\n'
+                f'Sub section part: {self.sub_section_part_number},\n'
+                f'Sub section title: {self.sub_section_title}')

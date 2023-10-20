@@ -96,3 +96,9 @@ def convert_str_to_datetime(date_str):
         return formatted_date
     else:
         return None
+
+
+def check_header_tag(tag):
+    if re.search('h\\d+', tag):
+        return True
+    return False
