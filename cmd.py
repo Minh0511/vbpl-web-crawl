@@ -111,24 +111,24 @@ def main():
             elif choice == "3":
                 craw_all_anle()
             elif choice == "4":
-                vbpl_id = input("Nhập ID văn bản pháp quy: ")
+                vbpl_id = input("Nhập ID văn bản pháp quy (VD: 32801): ")
                 crawl_vbpl_by_id_phap_quy(vbpl_id)
             elif choice == "5":
-                vbpl_id = input("Nhập ID văn bản hợp nhất: ")
+                vbpl_id = input("Nhập ID văn bản hợp nhất (VD: 147301): ")
                 crawl_vbpl_by_id_hop_nhat(vbpl_id)
             elif choice == "6":
-                anle_id = input("Nhập ID án lệ: ")
+                anle_id = input("Nhập ID án lệ (VD: TAND292162): ")
                 crawl_anle_by_id(anle_id)
             elif choice == "7":
-                vbpl_id = input("Nhập ID vbpl: ")
+                vbpl_id = input("Nhập ID vbpl (VD: 32801): ")
                 fetch_vbpl_by_id(vbpl_id)
             elif choice == "8":
-                anle_id = input("Nhập ID án lệ: ")
+                anle_id = input("Nhập ID án lệ (VD: TAND292162): ")
                 fetch_anle_by_id(anle_id)
             elif choice == "9":
                 preview_anle()
             elif choice == "10":
-                num_of_rows = input("Nhập số dòng: ")
+                num_of_rows = input("Nhập số dòng (VD: 3): ")
                 issuance_date = input("Nhập ngày ban hành (DD/MM/YYYY): ")
                 preview_vbpl(num_of_rows, issuance_date)
             elif choice == "11" or choice == "--help":
