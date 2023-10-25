@@ -1,4 +1,5 @@
 import asyncio
+import re
 import sys
 
 from app.helper.enum import VbplType
@@ -72,6 +73,31 @@ def preview_anle():
     print("Bản xem trước được lưu tại documents/preview/anle")
 
 
+def crawl_anle_by_id_string(id_string):
+    print(f"Đang cào dữ liệu của các án lệ : {id_string}")
+    id_arr = re.split(r',\s*|,', id_string)
+    for anle_id in id_arr:
+        new_anle = Anle(doc_id=anle_id)
+        asyncio.run(anle_service.crawl_anle_info(new_anle))
+    print("Cào dữ liệu hoàn tất")
+
+
+def crawl_vbpl_by_id_string_hop_nhat(id_string):
+    print(f"Đang cào dữ liệu của các văn bản hợp nhất có id: {id_string}")
+    id_arr = re.split(r',\s*|,', id_string)
+    for vbpl_id in id_arr:
+        asyncio.run(vbpl_service.crawl_vbpl_by_id(vbpl_id, VbplType.HOP_NHAT))
+    print("Cào dữ liệu hoàn tất")
+
+
+def crawl_vbpl_by_id_string_phap_quy(id_string):
+    print(f"Đang cào dữ liệu của các văn bản pháp quy có id: {id_string}")
+    id_arr = re.split(r',\s*|,', id_string)
+    for vbpl_id in id_arr:
+        asyncio.run(vbpl_service.crawl_vbpl_by_id(vbpl_id, VbplType.PHAP_QUY))
+    print("Cào dữ liệu hoàn tất")
+
+
 def print_menu():
     menu = """
 ╔══════════════════════════════════════════════════════╗
@@ -87,12 +113,15 @@ def print_menu():
 ║ 4. Cào văn bản pháp quy bằng ID                      ║
 ║ 5. Cào văn bản hợp nhất bằng ID                      ║
 ║ 6. Cào án lệ bằng ID                                 ║
-║ 7. Tìm vbpl theo ID                                  ║
-║ 8. Tìm án lệ theo ID                                 ║
-║ 9. Preview án lệ                                     ║
-║ 10. Preview văn bản pháp luật                        ║
-║ 11. --help                                           ║
-║ 12. Thoát                                            ║
+║ 7. Cào văn bản pháp quy bằng danh sách ID            ║
+║ 8. Cào văn bản hợp nhất bằng danh sách ID            ║
+║ 9. Cào án lệ bằng danh sách ID                       ║
+║ 10. Tìm vbpl theo ID                                 ║
+║ 11. Tìm án lệ theo ID                                ║
+║ 12. Preview án lệ                                    ║
+║ 13. Preview văn bản pháp luật                        ║
+║ 14. --help                                           ║
+║ 15. Thoát                                            ║
 ╚══════════════════════════════════════════════════════╝
 """
     print(menu)
@@ -111,29 +140,38 @@ def main():
             elif choice == "3":
                 craw_all_anle()
             elif choice == "4":
-                vbpl_id = input("Nhập ID văn bản pháp quy: ")
+                vbpl_id = input("Nhập ID văn bản pháp quy (VD: 32801): ")
                 crawl_vbpl_by_id_phap_quy(vbpl_id)
             elif choice == "5":
-                vbpl_id = input("Nhập ID văn bản hợp nhất: ")
+                vbpl_id = input("Nhập ID văn bản hợp nhất (VD: 147301): ")
                 crawl_vbpl_by_id_hop_nhat(vbpl_id)
             elif choice == "6":
-                anle_id = input("Nhập ID án lệ: ")
+                anle_id = input("Nhập ID án lệ (VD: TAND292162): ")
                 crawl_anle_by_id(anle_id)
             elif choice == "7":
-                vbpl_id = input("Nhập ID vbpl: ")
-                fetch_vbpl_by_id(vbpl_id)
+                vbpl_id = input("Nhập danh sách ID văn bản pháp quy (VD: 32801,22313): ")
+                crawl_vbpl_by_id_string_phap_quy(vbpl_id)
             elif choice == "8":
-                anle_id = input("Nhập ID án lệ: ")
-                fetch_anle_by_id(anle_id)
+                vbpl_id = input("Nhập danh sách ID văn bản hợp nhất (VD: 147301,135690): ")
+                crawl_vbpl_by_id_string_hop_nhat(vbpl_id)
             elif choice == "9":
-                preview_anle()
+                anle_id = input("Nhập danh sách ID án lệ (VD: TAND292162,TAND292161): ")
+                crawl_anle_by_id_string(anle_id)
             elif choice == "10":
-                num_of_rows = input("Nhập số dòng: ")
+                vbpl_id = input("Nhập ID vbpl (VD: 32801): ")
+                fetch_vbpl_by_id(vbpl_id)
+            elif choice == "11":
+                anle_id = input("Nhập ID án lệ (VD: TAND292162): ")
+                fetch_anle_by_id(anle_id)
+            elif choice == "12":
+                preview_anle()
+            elif choice == "13":
+                num_of_rows = input("Nhập số dòng (VD: 3): ")
                 issuance_date = input("Nhập ngày ban hành (DD/MM/YYYY): ")
                 preview_vbpl(num_of_rows, issuance_date)
-            elif choice == "11" or choice == "--help":
+            elif choice == "14" or choice == "--help":
                 print_menu()
-            elif choice == "12":
+            elif choice == "15":
                 print("Đang thoát chương trình.")
                 break
             else:

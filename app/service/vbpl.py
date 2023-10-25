@@ -161,12 +161,14 @@ class VbplService:
                         await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
                         vbpl_fulltext, vbpl_sub_part = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
                         await cls.search_concetti(new_vbpl)
+                        await cls.enrich_vbpl_sector(new_vbpl)
 
                     elif vbpl_type == VbplType.HOP_NHAT:
                         await cls.crawl_vbpl_hopnhat_info(new_vbpl)
                         await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
                         await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
                         await cls.search_concetti(new_vbpl)
+                        await cls.enrich_vbpl_sector(new_vbpl)
                         vbpl_fulltext, vbpl_sub_part = await cls.additional_html_crawl(new_vbpl)
 
                     # add to db
@@ -864,15 +866,6 @@ class VbplService:
                         if len(result_items) == 0:
                             continue
 
-                        # get vbpl sector
-                        with LocalSession.begin() as session:
-                            # avoid upsert into 'Lĩnh vực khác' for the already specific sector
-                            await cls.get_vbpl_sector(vbpl.serial_number, vbpl.sub_title, vbpl)
-                            check_sector = session.query(Vbpl).filter(Vbpl.id == vbpl.id).first()
-                            if check_sector is not None:
-                                if check_sector.sector != 'Lĩnh vực khác' and vbpl.sector is None:
-                                    vbpl.sector = check_sector.sector
-
                         for item in result_items:
                             # if the search result is similar to the source vbpl
                             if (Levenshtein.ratio(search_key, item['name']) >= threshold
@@ -925,9 +918,6 @@ class VbplService:
                 except Exception as e:
                     _logger.exception(f'Search using concetti {e}')
                     raise CommonException(500, 'Search using concetti')
-
-        if vbpl.sector is None:
-            vbpl.sector = 'Lĩnh vực khác'
 
     # additional html crawl from tvpl
     @classmethod
@@ -1069,13 +1059,14 @@ class VbplService:
             await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
             await cls.crawl_vbpl_hopnhat_fulltext(new_vbpl)
             await cls.search_concetti(new_vbpl)
+            await cls.enrich_vbpl_sector(new_vbpl)
             vbpl_fulltext, vbpl_sub_part = await cls.additional_html_crawl(new_vbpl)
         else:
             await cls.crawl_vbpl_phapquy_info(new_vbpl)
             await cls.crawl_vbpl_pdf(new_vbpl, vbpl_type)
             vbpl_fulltext, vbpl_sub_part = await cls.crawl_vbpl_phapquy_fulltext(new_vbpl)
             await cls.search_concetti(new_vbpl)
-
+            await cls.enrich_vbpl_sector(new_vbpl)
         await cls.push_vbpl_to_db(vbpl_id, new_vbpl, vbpl_fulltext, vbpl_sub_part)
 
     @classmethod
@@ -1184,17 +1175,18 @@ class VbplService:
             for file_link in file_links:
                 archive.write(file_link)
 
+    # get vbpl sector
     @classmethod
-    async def get_vbpl_sector(cls, serial_number, sub_title, vbpl: Vbpl):
-        if serial_number == 'Không số':
+    async def enrich_vbpl_sector(cls, vbpl: Vbpl):
+        if vbpl.serial_number == 'Không số':
             query_params = {
-                'Keywords': sub_title,
+                'Keywords': vbpl.sub_title,
                 'SearchOptions': 1,
                 'SearchExact': 1
             }
         else:
             query_params = {
-                'Keywords': serial_number,
+                'Keywords': vbpl.serial_number,
                 'SearchOptions': 3,
                 'SearchExact': 1
             }
@@ -1221,11 +1213,12 @@ class VbplService:
             # check if the searched doc is in the search result
             for search_result in search_results:
                 title = search_result.find('a').get('title')
-                if serial_number in title or sub_title in title:
+                if vbpl.serial_number in title or vbpl.sub_title in title:
                     result_url = search_result.find('a').get('href')
                     break
-            # if not found, then stop the function
+            # if not found, then stop the function, and mark those as "Lĩnh vực khác"
             if result_url == '':
+                vbpl.sector = 'Lĩnh vực khác'
                 return
             try:
                 async with aiohttp.ClientSession(trust_env=True) as session:
@@ -1258,3 +1251,13 @@ class VbplService:
                                 vbpl_sectors.append(vbpl_sector[colon_index + 1:].strip())
 
                         vbpl.sector = ' - '.join(vbpl_sectors)
+
+        with LocalSession.begin() as session:
+            # avoid upsert into 'Lĩnh vực khác' for the already specific sector
+            check_sector = session.query(Vbpl).filter(Vbpl.id == vbpl.id).first()
+            if check_sector is not None:
+                if check_sector.sector != 'Lĩnh vực khác' and vbpl.sector is None:
+                    vbpl.sector = check_sector.sector
+
+        if vbpl.sector is None:
+            vbpl.sector = 'Lĩnh vực khác'
